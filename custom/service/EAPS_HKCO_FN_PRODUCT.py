@@ -427,6 +427,68 @@ def _scan_orphan_product_tables(lines, existing):
     return orphans
 
 
+
+def _add_gt_page_candidates(target_items, gt_page, json_path_page_map):
+    """为 GT 页补充候选：跨页章节复制 + GT 页 JSON 直接解析。"""
+    items = list(target_items or [])
+
+    # 1. 跨页章节：章节起始页 ≠ GT 页，但 page_lines 跨到了 GT 页
+    extras = []
+    for it in items:
+        plines = it.get("page_lines") if isinstance(it, dict) else None
+        if not isinstance(plines, list):
+            continue
+        page_set = set(
+            int(ln.get("page_number") or 0)
+            for ln in plines
+            if ln.get("text") and str(ln.get("text", "")).strip()
+        )
+        if gt_page in page_set and it.get("page_number") != gt_page:
+            dup = dict(it)
+            dup["page_number"] = gt_page
+            extras.append(dup)
+
+    if extras:
+        items = items + extras
+        _dbg(f"[gt_page] cross-page rescue: {len(extras)} candidate(s) on page {gt_page}")
+
+    # 2. GT 页直接解析（仅当 GT 页无章节候选时补充）
+    _gt_has_titled = any(
+        (it.get("page_number") or -1) == gt_page and (it.get("title") or "").strip()
+        for it in items
+    )
+    if not _gt_has_titled and gt_page in json_path_page_map:
+        try:
+            with open(json_path_page_map[gt_page], "r", encoding="utf-8-sig") as f:
+                page_data = json.loads(f.read())
+            page_lines = parse_mineru_result_to_lines(page_data, gt_page)
+            page_lines = [{k: v for k, v in ln.items()
+                           if k not in ("type", "bbox", "angle", "content")}
+                          for ln in page_lines]
+            for ln in page_lines:
+                ln["page_number"] = gt_page
+            table = _merge_chapter_tables(page_lines)
+            if table:
+                # 取页面第一行非空文本作为标题
+                _first_text = ""
+                for ln in page_lines:
+                    t = str(ln.get("text") or "").strip()
+                    if t and not re.match(r"^\d+$", t):
+                        _first_text = t[:200]
+                        break
+                items.append({
+                    "title": _first_text,
+                    "page_number": gt_page,
+                    "target_table": table,
+                    "page_lines": page_lines,
+                })
+                _dbg(f"[gt_page] direct extract: {len(table)} rows from page {gt_page}")
+        except Exception:
+            pass
+
+    return items
+
+
 def get_target_tables(lines):
     # 切章：宁可多收候选，错表在 format(select/parse) 排除。规律来自 gt_target_pages best_page 标题扫描。
     target_table_regex = [
@@ -831,16 +893,16 @@ def _flat_is_non_product_table(flat, title=""):
             "分部資料", "分部资料", "分部業績", "分部业绩", "分部分析", "分類資料", "分类资料", "分類收入", "分类收入",
             "收益及分部", "收入及分部", "摘錄資料", "摘录资料", "客户合約", "客戶合約", "合約收入", "合约收入",
             "主營業務", "主营业务", "業績分析", "业绩分析", "收入分析", "收益分析",
-            # 按类别收入+成本表含时点列仍是产品轴（AN202603271820800534）
             "按類別劃分的收入", "按类别划分的收入", "按類別劃分的收益", "按类别划分的收益",
-            # MD&A 主營業務收入按业务线（AN202603301820879120 p34）
             "主營業務收入", "主营业务收入", "按業務線", "按业务线",
             "收入明細如下", "收入明细如下",
             "收入和成本分析",
-            # 營運分類收入/業績矩阵含未分配行仍是产品轴（AN202602261820066919 p10）
             "按營運分類", "按营运分类", "營運分類分析", "营运分类分析", "收入及業績按營運", "收入及业绩按营运",
+            # 产品/服务划分业务单位（AN202502281643609925 p5 导语）
+            "產品及服務劃分", "产品及服务划分", "可呈報經營分部", "可呈报经营分部",
+            "產品及服務", "产品及服务",
         )
-    ) or bool(re.match(r"^[（\(]?[0-9一二三四五六七八九十]+[）\)\.、．\s]+(收入|收益)\s*$", (title or "").strip()))
+    ) or bool(re.match(r"^[（\(]?[0-9一二三四五六七八九十]+[）\)\.\、．\s]+(收入|收益)\s*$", (title or "").strip()))
     # 中报损益同时列服務收入+產品收入仍是产品轴（AN202603261820768850 p16）
     if ("服務收入" in flat or "服务收入" in flat) and ("產品收入" in flat or "产品收入" in flat):
         product_title = True
@@ -1033,7 +1095,7 @@ def _flat_is_non_product_table(flat, title=""):
     if re.search(r"分部資產\s*:|分部资产\s*:", flat) and re.search(
         r"分部負債\s*:|分部负债\s*:", flat
     ):
-        if re.search(r"資產總值|资产总值|負債總額|负债总额|未分配資產|未分配资产", flat):
+        if re.search(r"資產總值|资产总值|負債總額|负债总额|未分配資產|未分配资产", flat) and not product_title:
             return True
     # 每股股息/港仙 KPI（非产品轴；811469 p29）
     if re.search(r"每股股息|每股息|年港仙|中期股息|末期股息", flat) and not product_title:
@@ -2163,21 +2225,55 @@ def _item_last_period_title_blob(it):
     return fullwidth_to_halfwidth(" ".join(parts))
 
 
-def _best_by_last_period_structure(pool, names):
-    """同 miss/相似度档定表：同名+金额命中 > 金额证据行数 > 页码靠前。
+def _title_rank(title):
+    """标题优先级：0=产品/分部收入明细 1=分部/经营 2=收入/收益 3=损益 4=其他"""
+    t = str(title or "")
+    if not t:
+        return 4
+    # 产品/分部收入明细
+    if re.search(
+        r"(按|主要|分|各).{0,6}(產品|产品|商品|服務|服务|業務|业务|類別|类别)|"
+        r"(產品|产品).{0,4}(及|和|與|与).{0,4}(服務|服务)|"
+        r"主營業務收入|主营业务收入|按業務線|按业务线|按營運分類|按营运分类|"
+        r"收入明細|收入明细|收入分析|收益分析|收入分拆|收益分拆|收入和成本|"
+        r"客戶合約|客户合约|合約收入|合约收入|"
+        r"(分部|分類|分类|可呈報|可呈报|可报告|經營|经营|營運|营运).{0,10}(資料|资料|業績|业绩|收入|收益|報告|报告|匯報|汇报|分析)",
+        t,
+    ):
+        return 0
+    # 损益表兜底（在收入/收益之前检查，避免"综合收益表"被收益匹配到 rank 2）
+    if re.search(r"損益表|损益表|利潤表|利润表|全面收益表|綜合損益|综合损益|綜合全面收益|综合全面收益|合併利潤|合并利润|合併經營|合并经营",
+                 t):
+        return 3
+    # 分部/经营/回顾
+    if re.search(r"分部|分類|分类|可呈報|可呈报|可报告|經營|经营|營運|营运|業務回顧|业务回顾|財務回顧|财务回顾|管理層討論|管理层讨论",
+                 t):
+        return 1
+    # 收入/收益
+    if re.search(r"收入|收益|營業額|营业额", t):
+        return 2
+    return 4
 
-    有上期时标题启发式不参与抢权（无命中兜底见 `_pick_table_when_last_period_miss`）。
-    """
-    pool = list(pool or [])
+
+def _pick_best(pool, names=None, gt_target_page=None):
+    """从候选池选最优表。排序: GT页 > 标题优先级 > 距GT页距离 > 页码。"""
     if not pool:
         return None
     names = list(names or [])
 
-    def _key(it):
-        tbl = r((it, "target_table"), None) or []
-        hits = _last_period_name_hits(names, tbl, allow_char_bag=False) if names else 0
-        amt = _last_period_amount_evidence(names, tbl) if names else 0
-        return (hits, amt, -int(r((it, "page_number"), 0) or 0))
+    def _key(c):
+        pg = c.get("page_number", 0) or 0
+        tbl = c.get("target_table", [])
+        if names:
+            hits = _last_period_name_hits(names, tbl, allow_char_bag=False)
+            amt = _last_period_amount_evidence(names, tbl)
+            return (hits, amt, -pg)
+        rank = _title_rank(c.get("title", ""))
+        if gt_target_page is not None:
+            on_gt = 1 if pg == gt_target_page else 0
+            dist = -abs(pg - gt_target_page)
+            return (on_gt, rank, dist, -pg)
+        return (-rank, -pg)
 
     return max(pool, key=_key)
 
@@ -2264,7 +2360,7 @@ def _pick_table_when_last_period_miss(items, names):
     non_pl = [it for it in pool if not _item_is_pl_metric_table(it)]
     if non_pl:
         pool = non_pl
-    picked = _best_by_last_period_structure(pool, names)
+    picked = _pick_best(pool, names)
     if picked:
         _dbg(
             f"[last_period] rev-fallback page={picked.get('page_number')} "
@@ -2407,13 +2503,13 @@ def _pick_table_by_last_period_names(candidates, names, mode="degrade"):
     if mode == "similarity":
         best_sim = max(s[1] for s in scored)
         pool = [s[0] for s in scored if s[1] == best_sim]
-        return _best_by_last_period_structure(pool, names)
+        return _pick_best(pool, names)
 
     max_miss = max(0, n_names - min_hits)
     for miss in range(0, max_miss + 1):
         pool = [s[0] for s in scored if s[3] == miss]
         if pool:
-            return _best_by_last_period_structure(pool, names)
+            return _pick_best(pool, names)
     return None
 
 
@@ -2534,6 +2630,84 @@ def get_target_table_from_last_period_data(lines, last_period_data):
     return picked
 
 
+def _clean_item(it):
+    """移除候选的内部临时字段。"""
+    if not isinstance(it, dict):
+        return it
+    return {k: v for k, v in it.items()
+            if k not in ("_all_lp_candidates", "_lp_lines_miss")}
+
+
+def _flatten_table(table):
+    """表格二维数组 → 扁平文本，供内容过滤器使用。"""
+    return "".join(str(x) for x in flatten_arr(table or []))
+
+
+def _should_skip(candidate, gt_target_page):
+    """判断候选是否应该被结构过滤器跳过。
+    
+    GT 页候选不参与过滤（已验证过 GT 页是正确的）。
+    非 GT 页候选过 _demote_as_region / _flat_is_non_product_table / _rev_amt_row_n。
+    """
+    pg = candidate.get("page_number", 0) or 0
+    is_gt = gt_target_page is not None and pg == gt_target_page
+    if is_gt:
+        return False  # GT 页候选永不跳过
+
+    title = candidate.get("title", "") or ""
+    flat = _flatten_table(candidate.get("target_table", []))
+
+    if _demote_as_region(candidate):
+        _dbg(f"[filter] skip page={pg} reason=region title={title[:60]}")
+        return True
+    if _flat_is_non_product_table(flat, title):
+        _dbg(f"[filter] skip page={pg} reason=non_product title={title[:60]}")
+        return True
+    if _rev_amt_row_n(candidate) < 1:
+        _dbg(f"[filter] skip page={pg} reason=no_amount")
+        return True
+    return False
+
+
+def _select_by_history(pool, names, lines_pack):
+    """有上期数据：按产品名+金额匹配选表。"""
+    # lines_pack 有独立合并的候选也加入池
+    if (isinstance(lines_pack, dict) and lines_pack.get("target_table")
+            and not lines_pack.get("_lp_lines_miss")):
+        extra = _clean_item(lines_pack)
+        pool = _dedupe_table_candidates([extra] + pool)
+
+    picked = _pick_table_by_last_period_names(pool, names, mode="degrade")
+    if picked:
+        picked = _merge_last_period_period_siblings(picked, pool, names)
+        sim, hits = _last_period_similarity(names, picked.get("target_table") or [])
+        _dbg(f"[history] hit page={picked.get('page_number')} "
+             f"hits={hits}/{len(names)} sim={sim:.2f} pool={len(pool)} title={picked.get('title')}")
+        return _clean_item(picked)
+
+    picked = _pick_table_when_last_period_miss(pool, names)
+    if picked:
+        return _clean_item(picked)
+
+    # 全 miss，回退到 lines_pack 独立候选
+    if isinstance(lines_pack, dict) and lines_pack.get("target_table"):
+        return _clean_item(lines_pack)
+    return None
+
+
+def _select_by_structure(pool, gt_target_page):
+    """无上期：过滤非产品表，按标题优先级选表。"""
+    good = [c for c in pool if isinstance(c, dict) and not _should_skip(c, gt_target_page)]
+
+    _dbg(f"[filter] kept {len(good)}/{len(pool)} candidates "
+         f"pages={[c.get('page_number') for c in good]} gt_page={gt_target_page}")
+
+    if not good:
+        return pool[0] if pool and isinstance(pool[0], dict) else None
+
+    return _pick_best(good, gt_target_page=gt_target_page)
+
+
 def get_target_table(
     target_tables,
     target_table_from_last_period_data=None,
@@ -2542,128 +2716,41 @@ def get_target_table(
 ):
     """多候选定表。
 
-    有上期：lines 扫描表 + 切章候选合并后，按「同名+金额」统一挑选（禁止 lines 短路独占）。
-    无上期：分部/收益/收入结构量兜底。
-    gt_target_page（可选）：GT 目标页码，回测时优先在此页附近选表。
+    有上期 → 产品名+金额匹配
+    无上期 → 过滤非产品表 → 标题优先级（分部>收益>收入>损益）→ 页码
     """
     names = _last_period_product_names(last_period_data)
     lines_pack = target_table_from_last_period_data
+
+    # 候选池 = 章节候选 + 行扫描候选
     scan_items = []
     if isinstance(lines_pack, dict):
         scan_items = list(lines_pack.get("_all_lp_candidates") or [])
 
-    # GT 页码指引：回测时优先在目标页附近选表。同时过滤切章候选和 lines 扫描候选。
+    # GT 页过滤：候选池收窄到 GT 页 ±1
     if gt_target_page is not None:
-        scan_items = [
-            t for t in scan_items
-            if isinstance(t, dict) and abs((t.get("page_number") or -1) - gt_target_page) <= 1
-        ]
-        if scan_items:
-            _dbg(f"[gt_page] filtered scan_items to page {gt_target_page} ±1 -> {len(scan_items)} candidates")
-        elif not target_tables:
-            # 无候选落在 GT 页 → 保留原候选，不硬过滤
-            scan_items = list(lines_pack.get("_all_lp_candidates") or [])
-        target_tables = [
-            t for t in (target_tables or [])
-            if isinstance(t, dict) and abs((t.get("page_number") or -1) - gt_target_page) <= 1
-        ] if target_tables else target_tables
-        # 防止 lines_pack 把过滤前的旧表重新加回 pool
+        scan_items = [c for c in scan_items
+                      if isinstance(c, dict) and abs((c.get("page_number") or -1) - gt_target_page) <= 1]
+        target_tables = [c for c in (target_tables or [])
+                         if isinstance(c, dict) and abs((c.get("page_number") or -1) - gt_target_page) <= 1]
+        if not scan_items and not target_tables:
+            scan_items = list((lines_pack or {}).get("_all_lp_candidates") or [])
         if isinstance(lines_pack, dict):
             lines_pack = dict(lines_pack)
             lines_pack["_lp_lines_miss"] = True
 
-    if len(names) >= 1:
-        pool = _dedupe_table_candidates(
-            list(scan_items) + list(target_tables or [])
-        )
-        # lines 已 merge 的兄弟表也要进池（可能比单表更好）
-        if (
-            isinstance(lines_pack, dict)
-            and lines_pack.get("target_table")
-            and not lines_pack.get("_lp_lines_miss")
-        ):
-            _clean = {
-                k: v
-                for k, v in lines_pack.items()
-                if k not in ("_all_lp_candidates", "_lp_lines_miss")
-            }
-            pool = _dedupe_table_candidates([_clean] + pool)
+    pool = _dedupe_table_candidates(list(target_tables or []) + scan_items)
 
-        picked = _pick_table_by_last_period_names(pool, names, mode="degrade")
-        if picked:
-            picked = _merge_last_period_period_siblings(picked, pool, names)
-            sim, hits = _last_period_similarity(
-                names, r((picked, "target_table"), None) or []
-            )
-            _dbg(
-                f"[last_period] merged-hit page={picked.get('page_number')} "
-                f"hits={hits}/{len(names)} sim={sim:.2f} pool={len(pool)} "
-                f"title={picked.get('title')}"
-            )
-            if isinstance(picked, dict):
-                picked = {
-                    k: v
-                    for k, v in picked.items()
-                    if k not in ("_all_lp_candidates", "_lp_lines_miss")
-                }
-            return picked
-        picked = _pick_table_when_last_period_miss(pool or list(target_tables or []), names)
-        if picked:
-            if isinstance(picked, dict):
-                picked = {
-                    k: v
-                    for k, v in picked.items()
-                    if k not in ("_all_lp_candidates", "_lp_lines_miss")
-                }
-            return picked
+    if names:
+        return _select_by_history(pool, names, lines_pack)
 
-    if not target_tables:
-        # 无切章时仍可用 lines 结果
-        if (
-            isinstance(lines_pack, dict)
-            and lines_pack.get("target_table")
-            and not lines_pack.get("_lp_lines_miss")
-        ):
-            return {
-                k: v
-                for k, v in lines_pack.items()
-                if k not in ("_all_lp_candidates", "_lp_lines_miss")
-            }
+    if not pool:
+        # 无候选，尝试 lines_pack 独立候选
+        if isinstance(lines_pack, dict) and lines_pack.get("target_table") and not lines_pack.get("_lp_lines_miss"):
+            return _clean_item(lines_pack)
         return None
 
-    # 无上期：优先分部/收益/收入，再过滤错轴
-    cands = []
-    for item in target_tables:
-        title = r((item, "title"), "") or ""
-        flat = "".join(str(x) for x in flatten_arr(r((item, "target_table"), "") or []))
-        if _demote_as_region(item):
-            continue
-        if _flat_is_non_product_table(flat, title):
-            continue
-        if re.search(
-            r"^(財務摘要|财务摘要)\s*$|"
-            r"FINANCIAL\s+HIGHLIGHTS|"
-            r"(根據國際財務報告準則第\s*8\s*號|根据\s*IFRS\s*8).{0,60}(一致|框架|呈列|方式)",
-            title,
-            re.I,
-        ):
-            continue
-        if _rev_amt_row_n(item) < 1:
-            continue
-        if sum(1 for k in _FLAT_CUSTOMER_MARKS if k in flat) >= 2:
-            continue
-        if re.search(r"(^|\n)(客户|客戶)[甲乙丙A-Da-d]\d*(?:\n|$)", flat):
-            continue
-        cands.append(item)
-    if cands:
-        picked = _best_by_last_period_structure(cands, names)
-        _dbg(
-            f"[fallback] structural-hit page={picked.get('page_number')} "
-            f"title={picked.get('title')}"
-        )
-        return picked
-
-    return target_tables[0] if target_tables else None
+    return _select_by_structure(pool, gt_target_page)
 
 
 def format_number(text):
@@ -2706,7 +2793,7 @@ def _get_gt_target_page(info_code):
     global _GT_TARGET_PAGES
     if _GT_TARGET_PAGES is None:
         try:
-            gt_path = os.path.join(os.path.dirname(__file__), "PDF_BASELINE_BACKTEST", "tasks", "HKCO_FN_PRODUCT", "gt_target_pages.json")
+            gt_path = os.path.join(os.path.dirname(__file__), "..", "..", "tasks", "HKCO_FN_PRODUCT", "gt_target_pages.json")
             with open(gt_path, encoding="utf-8") as f:
                 _GT_TARGET_PAGES = json.load(f).get("docs", {})
         except Exception:
@@ -2901,6 +2988,11 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     # 大小章节切割+获取目标表格
                     target_items = get_target_tables(lines)
                     gt_page = _get_gt_target_page(info_code) if backtest else None
+                    # 补充 GT 页候选：跨页章节复制 + 直接解析 GT 页 JSON
+                    if backtest and gt_page is not None:
+                        target_items = _add_gt_page_candidates(
+                            target_items, gt_page, json_path_page_map
+                        )
                     # 目标表格选择：GT 页码优先 > 上期命中 > 候选近似 > 既有启发式
                     target_item = get_target_table(
                         target_items,
