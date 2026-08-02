@@ -3291,45 +3291,11 @@ def process_pdf_file_batch(pdfs):
 
 
 if __name__ == "__main__":
-    #跑批范围
-    sql = ''''''
-
-    # 本地跑批用代码
-    pdfs_path = r"E:\vdb\data\eaps\pdf\input"
-    htmls_path = r"E:\vdb\data\eaps\pdf\input-html"
-
-    pdf_list = os.listdir(pdfs_path)
-
-    single_object_pool, client_pooled_factory = init_ftp_pool()
-    set_ftp_client_pool(single_object_pool, client_pooled_factory)
-    deal_infocode_list = ["AN202503211645656052"]
-    if len(deal_infocode_list) > 0:
-        deal_pdf_list = []
-        for deal_infocode in deal_infocode_list:
-            sql = "select INFOCODE,ATTACHNAME from newsadmin.ann_basinfo where infocode = '" + deal_infocode + "'"
-            result, data = select_sql_ein1(sql)
-
-            ocr_sql = "select HTMLATTACHNAME from pdfjx.VT_RESULT_OCR_MU where infocode = '" + deal_infocode + "'"
-            ocr_result, ocr_data = select_sql_ein1(ocr_sql)
-            ocr_html_path = ""
-            if ocr_result and ocr_data and len(ocr_data) == 1:
-                ocr_html_path = ocr_data[0].get("HTMLATTACHNAME")
-            # ocr_html_path = '/OCR_RESULT/azure/BOND/2025/04/30/AN202504301664905448##/OCR_RESULT/hw/BOND/2025/04/30/AN202504301664905448'
-            for row in data:
-                infocode = row["INFOCODE"]
-                attach_name = row["ATTACHNAME"]
-
-                result = download_ocr_file_concurrency("123", infocode, attach_name, ocr_html_path)
-                source_path = r"E:/vdb/data/eaps/pdf/input/" + deal_infocode + ".pdf"
-                deal_pdf_list.append(deal_infocode)
-
-        if len(deal_pdf_list) > 0:
-            pdf_list = deal_pdf_list
-
-    pdf_list = [os.path.join(pdfs_path, pdf) for pdf in pdf_list if re.search(r"^AN\d+$", pdf)]
-
-    start_time = time.time()
-    process_pdf_file_batch(pdf_list)
-    end_time = time.time()
-    total_time = end_time - start_time
-    print(f"Total time: {total_time} seconds")
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    code = "AN202502281643617359"
+    pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
+    result = process_pdf_file(pdf_path, code, "debug", None, None, {
+        "mineru_json_base_dir": os.path.join(root, "pdf_json"),
+        "pipeline_debug": True,
+    })
+    print(result)
