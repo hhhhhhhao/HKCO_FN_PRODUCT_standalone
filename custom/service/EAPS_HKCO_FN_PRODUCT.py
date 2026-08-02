@@ -643,6 +643,18 @@ def get_target_tables(lines):
             next_index = lines_group_index[i + 1]
             lines_grouped.append(lines[index:next_index])
 
+    # 合并续页章节：「(續)」「(续)」标题章并入前一章，避免同年表被切开选到单期
+    _merged = []
+    for _grp in lines_grouped:
+        if not _grp:
+            continue
+        _first = _grp[0].get("text", "") if _grp else ""
+        if _merged and re.search(r"[（\(]續[）\)]|[（\(]续[）\)]", _first):
+            _merged[-1].extend(_grp)
+        else:
+            _merged.append(_grp)
+    lines_grouped = _merged
+
 
     target_tables = []
     for gi, inner_lines in enumerate(lines_grouped):
@@ -1471,6 +1483,7 @@ _LAST_PERIOD_SKIP_NAMES = frozenset({
 def _norm_product_name(name):
     s = fullwidth_to_halfwidth(str(name or "")).strip()
     s = re.sub(r"\s+", "", s)
+    s = re.sub(r"^[•\-•◦]\s*", "", s)  # 去掉列表符号前缀
     # 匹配用简繁折叠（展示名仍以 format_product_name / 表原文为准）
     for a, b in (
         ("戶", "户"),
@@ -1488,6 +1501,7 @@ def _norm_product_name(name):
         ("與", "与"),
         ("於", "于"),
         ("來", "来"),
+        ("脫", "脱"), ("綫", "线"),
         ("還", "还"),
         ("這", "这"),
         ("為", "为"),
@@ -1631,6 +1645,15 @@ def _last_period_amt_near(cell_value, ref_amt):
     return 0.2 <= ratio <= 5.0
 
 
+def _is_subseq(short, long):
+    """检查 short 的每个字符是否按顺序出现在 long 中。"""
+    i = 0
+    for ch in long:
+        if i < len(short) and ch == short[i]:
+            i += 1
+    return i == len(short)
+
+
 def _last_period_same_grain(name, lp_name):
     """上期同粒度：复用定轴匹配+变体；允许「分类前缀-产品」；禁止无分隔的细拆子串。"""
     n = _norm_product_name(name)
@@ -1700,6 +1723,11 @@ def _last_period_same_grain(name, lp_name):
             return True
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9&\-]{1,15}", lp):
         if re.search(r"[（(]\s*" + re.escape(lp) + r"\s*[）)]", n, re.I):
+            return True
+    # 长度>5时允许中间多字/少字：子序列匹配
+    if len(n) > 5 and len(lp) > 5:
+        shorter, longer = (n, lp) if len(n) <= len(lp) else (lp, n)
+        if _is_subseq(shorter, longer):
             return True
     return False
 
@@ -1776,11 +1804,17 @@ def _last_period_name_hits(names, tbl, allow_char_bag=False):
         if has_amt:
             any_amt_row = True
         lab = _norm_product_name(row[0])
-        if not lab or not has_amt:
-            continue
-        for n in names:
-            if n not in hit and _last_period_same_grain(lab, n):
-                hit.add(n)
+        if lab and has_amt:
+            for n in names:
+                if n not in hit and _last_period_same_grain(lab, n):
+                    hit.add(n)
+        # 双语表：col0 英文无命中时也查 col1（中文产品名常在第二列）
+        if len(row) >= 2 and not re.search(r'[一-鿿]', str(row[0] or '')):
+            lab1 = _norm_product_name(row[1])
+            if lab1 and has_amt:
+                for n in names:
+                    if n not in hit and _last_period_same_grain(lab1, n):
+                        hit.add(n)
     if any_amt_row:
         for h in _table_header_cell_norms(tbl):
             if not h:
@@ -2043,8 +2077,12 @@ def _last_period_amount_evidence(names, tbl):
             if not isinstance(row, list) or not row:
                 continue
             lab = fullwidth_to_halfwidth(str(row[0] or ""))
+            # 排除「虧損/(收益)」「出售…收益」等非主营收入语境
+            if re.search(r"虧損|亏损|出售|處置|处置|減值|减值|撇減|撇减", lab):
+                continue
             if not re.search(
-                r"收入|收益|營業額|营业额|對外|对外|外部客户|外部客戶|來自外部|分部收入",
+                r"收入|收益|營業額|营业额|對外|对外|外部|分部收入|"
+                r"客戶合約|客户合约|合約收入|合约收入|銷售|销售",
                 lab,
             ):
                 continue
@@ -2226,37 +2264,82 @@ def _item_last_period_title_blob(it):
 
 
 def _title_rank(title):
-    """标题优先级：0=产品/分部收入明细 1=分部/经营 2=收入/收益 3=损益 4=其他"""
+    """标题优先级：0=分部/产品明细 1=按类/收入分析 2=收入/收益 3=损益 4=其他"""
     t = str(title or "")
     if not t:
         return 4
-    # 产品/分部收入明细
-    if re.search(
-        r"(按|主要|分|各).{0,6}(產品|产品|商品|服務|服务|業務|业务|類別|类别)|"
-        r"(產品|产品).{0,4}(及|和|與|与).{0,4}(服務|服务)|"
-        r"主營業務收入|主营业务收入|按業務線|按业务线|按營運分類|按营运分类|"
-        r"收入明細|收入明细|收入分析|收益分析|收入分拆|收益分拆|收入和成本|"
-        r"客戶合約|客户合约|合約收入|合约收入|"
-        r"(分部|分類|分类|可呈報|可呈报|可报告|經營|经营|營運|营运).{0,10}(資料|资料|業績|业绩|收入|收益|報告|报告|匯報|汇报|分析)",
-        t,
-    ):
+    # 分部 + 产品明细（同级，_col_signal 打破平局）
+    if re.search(r"(分部|分類|分类|可呈報|可呈报|可报告|經營|经营|營運|营运).{0,10}(資料|资料|業績|业绩|收入|收益|報告|报告|匯報|汇报|分析|信息)",
+                 t):
         return 0
-    # 损益表兜底（在收入/收益之前检查，避免"综合收益表"被收益匹配到 rank 2）
+    if re.search(r"(按|主要|分|各).{0,6}(產品|产品|商品|服務|服务|業務|业务|產品線|产品线)|"
+                 r"(產品|产品).{0,4}(及|和|與|与).{0,4}(服務|服务)|"
+                 r"主營業務收入|主营业务收入|按業務線|按业务线|按營運分類|按营运分类|"
+                 r"客戶合約|客户合约|合約收入|合约收入",
+                 t):
+        return 0
+    # 按类/收入分析
+    if re.search(r"(按|主要).{0,6}(類別|类别|種類|种类|服務類型|服务类型)|"
+                 r"收入明細|收入明细|收入分析|收益分析|收入分拆|收益分拆|收入和成本",
+                 t):
+        return 1
+    # 损益表兜底
     if re.search(r"損益表|损益表|利潤表|利润表|全面收益表|綜合損益|综合损益|綜合全面收益|综合全面收益|合併利潤|合并利润|合併經營|合并经营",
                  t):
         return 3
-    # 分部/经营/回顾
-    if re.search(r"分部|分類|分类|可呈報|可呈报|可报告|經營|经营|營運|营运|業務回顧|业务回顾|財務回顧|财务回顾|管理層討論|管理层讨论",
-                 t):
-        return 1
     # 收入/收益
     if re.search(r"收入|收益|營業額|营业额", t):
         return 2
     return 4
 
 
-def _pick_best(pool, names=None, gt_target_page=None):
-    """从候选池选最优表。排序: GT页 > 标题优先级 > 距GT页距离 > 页码。"""
+def _col_signal(tbl):
+    """纯结构信号: 2=产品名列头 1=产品行头 0=年份列头。"""
+    if not tbl: return 0
+    for row in tbl[:3]:
+        if not isinstance(row, list): continue
+        for cell in row[1:4]:
+            s = str(cell or "").strip()
+            if not s: continue
+            if re.match(r"^(20\d{2}|二零|截至|於|于|for|變動|变动|百分比|%|"
+                        r"千港元|千元|人民幣|人民币|百萬|百万|未經審核|未经审核)", s):
+                continue
+            if len(s) >= 4 and re.search(r"[一-鿿]", s):
+                return 2  # 产品列头
+    prod_count = 0
+    # 检查列头是否有对账/抵销关键词
+    for row in tbl[:3]:
+        if not isinstance(row, list): continue
+        for cell in row[1:4]:
+            s = str(cell or "")
+            if re.search(r"註銷|注销|抵銷|抵销|對銷|对销|綜合|综合|合併|合并|分部間|分部间", s):
+                return -1  # 对账表，降权
+    for row in tbl:
+        if not isinstance(row, list) or len(row) < 2: continue
+        lab = str(row[0] or "").strip()
+        if not lab or len(lab) < 2: continue
+        if re.search(r"[:：]$", lab): continue
+        if re.match(r"^(合計|合计|總計|总计|總額|总额|小計|小计|合併|合并)$", lab): continue
+        if re.match(r"^(收益|收入|營業額|营业额|成本|費用|费用|毛利|溢利|利潤|利润|"
+                    r"銷售成本|销售成本|服務成本|服务成本|客戶合約|客户合约|"
+                    r"20\d{2}|二零|截至|於|于|for|變動|变动)", lab): continue
+        # 非产品标签
+        if _cell_looks_geo(lab): continue
+        if re.search(r"利息|股息|政府補助|政府补助|回扣|撥備|拨备|減值|减值|"
+                     r"客戶|客户|稅種|税种|稅率|税率|增值稅|增值税|"
+                     r"開支|开支|費用|费用|財務|财务|融資|融资|"
+                     r"資產|资产|負債|负债|折舊|折旧|攤銷|摊销|"
+                     r"物業|物业|設備|设备|貸款|贷款|匯兌|汇兑|"
+                     r"存款|投資收入|投资收入|"
+                     r"銷售和營銷|一般及行政|研發開支", lab): continue
+        if re.search(r"[一-鿿]", lab) and any(format_number(str(c or "")) for c in row[1:] if c):
+            prod_count += 1
+    return 1 if prod_count >= 2 else 0
+
+
+
+def _pick_best(pool, names=None):
+    """从候选池选最优表。排序: 标题优先级 > 产品列头 > 收入信号 > 页码。"""
     if not pool:
         return None
     names = list(names or [])
@@ -2267,15 +2350,35 @@ def _pick_best(pool, names=None, gt_target_page=None):
         if names:
             hits = _last_period_name_hits(names, tbl, allow_char_bag=False)
             amt = _last_period_amount_evidence(names, tbl)
-            return (hits, amt, -pg)
+            sig = _col_signal(tbl)
+            rev = _has_rev_rows(tbl)
+            title = fullwidth_to_halfwidth(str(c.get("title", "") or ""))
+            # 合約負債/合同负债表降权
+            if re.search(r"合約負債|合同负债|合約負债|合同負債", title):
+                rev = 0
+            return (hits, rev, amt, sig, -pg)
         rank = _title_rank(c.get("title", ""))
-        if gt_target_page is not None:
-            on_gt = 1 if pg == gt_target_page else 0
-            dist = -abs(pg - gt_target_page)
-            return (on_gt, rank, dist, -pg)
-        return (-rank, -pg)
+        sig = _col_signal(tbl)
+        return (-rank, sig, -pg)
 
     return max(pool, key=_key)
+
+
+def _has_rev_rows(tbl):
+    """表行标签是否含收入/收益/销售类关键词（区分收入表 vs 资本开支/折旧表）。"""
+    for row in (tbl or [])[:10]:
+        if not isinstance(row, list) or not row:
+            continue
+        lab = _norm_product_name(str(row[0] or ""))
+        # 排除「虧損/(收益)」「處置收益」等非主营收入语境
+        if re.search(r"亏损|处置|出售.*收益|出售.*亏损|公平值|减值", lab, re.I):
+            continue
+        if re.search(r"外部销售|收入\b|收益\b|营业额|"
+                     r"客户合约|合约收入|销售收入|Revenue|"
+                     r"来自.*客户|对外交易",
+                     lab, re.I):
+            return 1
+    return 0
 
 
 def _item_is_pl_metric_table(it):
@@ -2375,39 +2478,47 @@ def _merge_last_period_period_siblings(picked, candidates, names):
     例：p11=2024 十二个月、p13=2023 十二个月，上期名同为列头。
     """
     if not picked or not candidates:
+        _dbg(f"[merge_sib] early_return: no_picked_or_candidates")
         return picked
     # BS/应收附注误中后勿再拼同年资产负债兄弟页
     if _item_last_period_bs_like(picked):
+        _dbg(f"[merge_sib] early_return: bs_like")
         return picked
     # MD&A 简述标题：勿合并兄弟，避免拼成损益大表
     _pt = fullwidth_to_halfwidth(str(r((picked, "title"), "") or "")).strip()
     if _last_period_mda_revenue_title(_pt):
+        _dbg(f"[merge_sib] early_return: mda_title")
         return picked
     names = list(names or [])
     base_tbl = r((picked, "target_table"), None) or []
+    base_page = int(r((picked, "page_number"), 0) or 0)
     base_hdr, base_row = _last_period_axis_hits(names, base_tbl)
     if max(base_hdr, base_row) < 2:
+        _dbg(f"[merge_sib] early_return: axis_hits too low hdr={base_hdr} row={base_row}")
         return picked
     base_year = _item_period_year(picked)
     base_kind = _item_period_kind(picked)
     _, base_hits = _last_period_similarity(names, base_tbl)
+    _dbg(f"[merge_sib] base page={base_page} year={base_year} kind={base_kind} hdr={base_hdr} row={base_row} hits={base_hits}")
     if base_hits < 2:
         return picked
 
     siblings = []
     seen_years = {base_year} if base_year else set()
-    base_page = int(r((picked, "page_number"), 0) or 0)
     for it in candidates:
         if it is picked:
             continue
         page = int(r((it, "page_number"), 0) or 0)
         if base_page and page and abs(page - base_page) > 8:
             continue
-        if _item_period_kind(it) != base_kind:
+        sib_kind = _item_period_kind(it)
+        if sib_kind != base_kind:
+            _dbg(f"[merge_sib] skip page={page} reason=kind_mismatch({sib_kind}!={base_kind})")
             continue
         tbl = r((it, "target_table"), None) or []
         sim, hits = _last_period_similarity(names, tbl)
         if hits < 2 or hits < base_hits - 1:
+            _dbg(f"[merge_sib] skip page={page} reason=hits({hits}<2 or <{base_hits-1})")
             continue
         hdr, row = _last_period_axis_hits(names, tbl)
         if max(hdr, row) < 2:
@@ -2418,16 +2529,20 @@ def _merge_last_period_period_siblings(picked, candidates, names):
         sib_is_col = hdr >= 2 and hdr >= row
         sib_is_row = row >= 2 and row > hdr
         if base_is_col and not sib_is_col:
+            _dbg(f"[merge_sib] skip page={page} reason=axis_mismatch(base_col={base_is_col} sib_col={sib_is_col})")
             continue
         if base_is_row and not sib_is_row:
+            _dbg(f"[merge_sib] skip page={page} reason=axis_mismatch(base_row={base_is_row} sib_row={sib_is_row})")
             continue
         year = _item_period_year(it)
-        # 无年份无法去重时，禁止盲目合并（易把中期/噪声表拼进来）
         if not year:
+            _dbg(f"[merge_sib] skip page={page} reason=no_year")
             continue
         if year in seen_years:
+            _dbg(f"[merge_sib] skip page={page} reason=dup_year({year})")
             continue
         seen_years.add(year)
+        _dbg(f"[merge_sib] add page={page} year={year}")
         siblings.append(it)
 
     if not siblings:
@@ -2643,22 +2758,17 @@ def _flatten_table(table):
     return "".join(str(x) for x in flatten_arr(table or []))
 
 
-def _should_skip(candidate, gt_target_page):
-    """判断候选是否应该被结构过滤器跳过。
-    
-    GT 页候选不参与过滤（已验证过 GT 页是正确的）。
-    非 GT 页候选过 _demote_as_region / _flat_is_non_product_table / _rev_amt_row_n。
-    """
+def _should_skip(candidate):
+    """纯规则过滤：地理表、非产品表、无金额表。"""
     pg = candidate.get("page_number", 0) or 0
-    is_gt = gt_target_page is not None and pg == gt_target_page
-    if is_gt:
-        return False  # GT 页候选永不跳过
-
     title = candidate.get("title", "") or ""
     flat = _flatten_table(candidate.get("target_table", []))
 
     if _demote_as_region(candidate):
         _dbg(f"[filter] skip page={pg} reason=region title={title[:60]}")
+        return True
+    if _is_never_revenue_title(candidate):
+        _dbg(f"[filter] skip page={pg} reason=non_rev_title title={title[:60]}")
         return True
     if _flat_is_non_product_table(flat, title):
         _dbg(f"[filter] skip page={pg} reason=non_product title={title[:60]}")
@@ -2669,13 +2779,26 @@ def _should_skip(candidate, gt_target_page):
     return False
 
 
+def _is_never_revenue_title(candidate):
+    """硬规则：标题明确不是收入/产品分布表的，直接排除。"""
+    title = fullwidth_to_halfwidth(str(r((candidate, "title"), "") or ""))
+    if re.search(r"其他分部資料|其他分部资料|資產及負債分析|资产及负债分析",
+                 title):
+        _dbg(f"[filter] skip page={candidate.get('page_number')} reason=non_rev_title title={title[:60]}")
+        return True
+    return False
+
+
 def _select_by_history(pool, names, lines_pack):
     """有上期数据：按产品名+金额匹配选表。"""
-    # lines_pack 有独立合并的候选也加入池
+    # lines_pack 候选并入池（放在章节候选之后，章节合并表优先保留）
     if (isinstance(lines_pack, dict) and lines_pack.get("target_table")
             and not lines_pack.get("_lp_lines_miss")):
         extra = _clean_item(lines_pack)
-        pool = _dedupe_table_candidates([extra] + pool)
+        pool = _dedupe_table_candidates(pool + [extra])
+
+    # 硬规则：非收入表标题直接排除
+    pool = [c for c in pool if not _is_never_revenue_title(c)]
 
     picked = _pick_table_by_last_period_names(pool, names, mode="degrade")
     if picked:
@@ -2695,17 +2818,17 @@ def _select_by_history(pool, names, lines_pack):
     return None
 
 
-def _select_by_structure(pool, gt_target_page):
+def _select_by_structure(pool):
     """无上期：过滤非产品表，按标题优先级选表。"""
-    good = [c for c in pool if isinstance(c, dict) and not _should_skip(c, gt_target_page)]
+    good = [c for c in pool if isinstance(c, dict) and not _should_skip(c)]
 
     _dbg(f"[filter] kept {len(good)}/{len(pool)} candidates "
-         f"pages={[c.get('page_number') for c in good]} gt_page={gt_target_page}")
+         f"pages={[c.get('page_number') for c in good]}")
 
     if not good:
         return pool[0] if pool and isinstance(pool[0], dict) else None
 
-    return _pick_best(good, gt_target_page=gt_target_page)
+    return _pick_best(good)
 
 
 def get_target_table(
@@ -2750,7 +2873,7 @@ def get_target_table(
             return _clean_item(lines_pack)
         return None
 
-    return _select_by_structure(pool, gt_target_page)
+    return _select_by_structure(pool)
 
 
 def format_number(text):
@@ -2890,6 +3013,14 @@ def _build_extract_result(
 
 
 def get_last_period_data(info_code, request_id, task_id):
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "tasks", "HKCO_FN_PRODUCT", "last_data.json")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f).get(info_code)
+            if data:
+                _dbg(f"[last_period] loaded from last_data.json rows={len(data)}")
+                return data
+    return []
     data_request = {
         "InfoCode": info_code,
         "DataTableParam": [
@@ -2993,6 +3124,10 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                         target_items = _add_gt_page_candidates(
                             target_items, gt_page, json_path_page_map
                         )
+                    # 保存所有候选表
+                    for _i, _cand in enumerate(list(target_items or [])):
+                        if isinstance(_cand, dict) and _cand.get("target_table"):
+                            _dbg_dump_target_item(f"{info_code}_candidate_{_i}", _cand)
                     # 目标表格选择：GT 页码优先 > 上期命中 > 候选近似 > 既有启发式
                     target_item = get_target_table(
                         target_items,
