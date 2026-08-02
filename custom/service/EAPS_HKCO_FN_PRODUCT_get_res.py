@@ -436,14 +436,21 @@ def is_row_product(table, last_period_data=None):
     if names:
         # 在 col 0 中匹配（行产品）— 只计有金额数据的行
         # 双语表：col0 英文时也查 col1（中文产品名常在第二列）
+        _PL_COMPOUND = re.compile(r'客户合約|分部|業績|损益|開支|资产|负债|資產|負債|費用|成本|折舊|攤銷|利息')
         def _row_match(n, r):
             c0 = str(r[0] or "")
             if _lp_name_in_cell(n, c0):
+                # LP名命中了col0，但要排除P&L复合标签（"客户合約之收益--直播帶貨"）
+                # 特征：col0比LP名长很多 + 含P&L关键词
+                if len(c0) > len(n) + 6 and _PL_COMPOUND.search(c0):
+                    return False
                 return True
             # col0 无中文 → 可能是双语表的英文名列，查 col1
             if len(r) >= 2 and not re.search(r'[一-鿿]', c0):
                 c1 = str(r[1] or "")
                 if _lp_name_in_cell(n, c1):
+                    if len(c1) > len(n) + 6 and _PL_COMPOUND.search(c1):
+                        return False
                     return True
             return False
 
@@ -461,10 +468,18 @@ def is_row_product(table, last_period_data=None):
                       if _row_match(n, r)
                       and not _UNIT_RE.search(str(r[0] or ""))
                       and _row_has_real_amount(r))
-        # 在表头列的 cols 1+ 中匹配 → 排除有真实金额的数据行（防 body 行 col1 被当列产品）
-        col_hit = sum(1 for n in names for r in rows[:6] for c in r[1:]
-                      if _lp_name_in_cell(n, str(c or ""))
-                      and not _row_has_real_amount(r))
+        # 在表头列的 cols 0+ 中匹配 → 排除有真实金额的数据行
+        # 洗掉单位后缀（\n千港元）再匹配，否则短 LP 名会被拒绝（"批發"≠"批發\n千港元"）
+        def _clean_cell(v):
+            return _UNIT_RE.sub("", str(v or "")).replace("\n", "").strip()
+        col_hit = 0
+        for n in names:
+            for r in rows[:6]:
+                if _row_has_real_amount(r):
+                    continue  # 排除数据行
+                for c in range(0, len(r)):  # 含 col0：列头行首列也是产品名
+                    if _lp_name_in_cell(n, _clean_cell(r[c])):
+                        col_hit += 1
         if row_hit > 0 or col_hit > 0:
             return row_hit >= col_hit
 
@@ -1029,8 +1044,6 @@ def extract_type2(table, last_period_data=None):
     products = {}
     for r in reversed(header):
         for c in range(1, min(nc, len(r))):
-            if c in products:
-                continue
             name = fullwidth_to_halfwidth(str(r[c] or "").strip())
             name = re.sub(r"\s+", "", name).strip()
             if not name or not re.search(r"[一-鿿A-Za-z]{2,}", name):
@@ -1052,6 +1065,14 @@ def extract_type2(table, last_period_data=None):
                 continue
             if re.search(r'\d{1,2}\s*月\s*\d{1,2}\s*日', name):
                 continue
+            # 若已有值且是 span 文本（全列同文），允许覆盖
+            # span 文本特征：长 >15 字，或含特定关键词
+            if c in products:
+                old = products[c]
+                if len(old) > 15 or re.search(r'分部|業績|资产|负债|資產|負債|計量|计量', old):
+                    pass  # 覆盖 span 文本
+                else:
+                    continue
             products[c] = name
 
     # 1b. 兜底：header 没产品或全是度量标签 → 从 body 前2行 columns 1+ 补搜列产品名
