@@ -2704,11 +2704,104 @@ def _should_skip(candidate):
 def _is_never_revenue_title(candidate):
     """硬规则：标题明确不是收入/产品分布表的，直接排除。"""
     title = fullwidth_to_halfwidth(str(r((candidate, "title"), "") or ""))
-    if re.search(r"其他分部資料|其他分部资料|資產及負債分析|资产及负债分析",
-                 title):
-        _dbg(f"[filter] skip page={candidate.get('page_number')} reason=non_rev_title title={title[:60]}")
+    t = title  # shorthand
+    # 免责声明
+    if re.search(r'不負責|不负责|概不|聲明|声明', t):
+        return True
+    # 纯P&L表标题
+    if re.search(r'虧損表|亏损表|合併收入表|合并收入表|綜合全面收益|综合全面收益|'
+                 r'合併經營表|合并经营表|CONDENSED.*CONSOLIDATED|STATEMENT.*PROFIT.*LOSS', t, re.I):
+        return True
+    # 管理层讨论/财务回顾/董事报告
+    if re.search(r'討論及分析|讨论及分析|財務回顧|财务回顾|管理層討論|管理层讨论|'
+                 r'董事會報告|董事会报告|對股東|对股东', t):
+        return True
+    # 附注/脚注
+    if re.match(r'^(附註|附注|Note\s*\d)', t):
+        return True
+    # 纯英文公司名（无产品/收入关键词）
+    if re.match(r'^[A-Z][A-Za-z0-9\s.&]+$', t) and len(t) > 5:
+        if not re.search(r'Revenue|Income|Segment|Product|Service|Cost|Profit|Loss', t, re.I):
+            return True
+    # 标题过短且无产品/分部/收入关键词
+    if len(t) <= 3 and not re.search(r'產品|产品|分部|收入|收益|服務|服务|業務|业务', t):
+        return True
+    # 其他明确非收入表
+    if re.search(r"其他分部資料|其他分部资料|資產及負債分析|资产及负债分析|"
+                 r"分部資產|分部资产|分部負債|分部负债|資本開支|资本开支|"
+                 r"租賃|租赁安排|關聯方|关联方|或然負債|或有负债|"
+                 r"公允價值|公允价值|金融工具|財務風險|财务风险", t):
+        _dbg(f"[filter] skip page={candidate.get('page_number')} reason=non_rev_title title={t[:60]}")
         return True
     return False
+
+
+# P&L 成本行标记（用于验证选中表是否真的是产品收入表）
+_PL_COST_VALIDATE_RE = re.compile(
+    r"成本|費用|费用|開支|开支|虧損|亏损|利潤|利润|溢利|毛利|"
+    r"稅|税|折舊|折旧|攤銷|摊销|利息|減值|减值|"
+    r"研發|研发|薪金|津貼|酬金|公平值|每股|經營利|经营利|"
+    r"融資|融资|銷售及|销售及|管理費|管理费|財務費|财务费")
+
+
+def _validate_revenue_table(candidate, names, hits, sim):
+    """验证选中的表确实是产品收入表，不是P&L表。
+
+    条件：表身行中P&L成本项占比<50%，或上期产品命中率足够高。
+    产品命中 = body col0 命中 + 表头列（cols 1+）命中。
+    """
+    if not isinstance(candidate, dict):
+        return True
+    tbl = candidate.get("target_table") or []
+    if not isinstance(tbl, list) or len(tbl) < 3:
+        return True
+
+    # 统计body行中的P&L成本和产品命中
+    pl_cost = 0
+    total = 0
+    prod_hits = 0
+    names_set = set(names or [])
+    for row in tbl:
+        if not isinstance(row, list) or len(row) < 2:
+            continue
+        c0 = str(row[0] or "").strip()
+        if not c0:
+            continue
+        # 只看有数据的行
+        has_num = any(re.search(r'\d', str(c or "")) for c in row[1:])
+        if not has_num:
+            continue
+        total += 1
+        if _PL_COST_VALIDATE_RE.search(c0):
+            pl_cost += 1
+        if names_set:
+            n0 = _norm_product_name(c0)
+            if any(_last_period_same_grain(n0, n) for n in names_set):
+                prod_hits += 1
+
+    # 表头列（cols 1+）也搜产品名：列产品表的产品名在列头不在 body col0
+    if names_set:
+        hdr_names = set()
+        for row in tbl[:6]:
+            if not isinstance(row, list):
+                continue
+            for c in range(1, len(row)):
+                hdr_names.add(_norm_product_name(row[c]))
+        for hn in hdr_names:
+            if hn and any(_last_period_same_grain(hn, n) for n in names_set):
+                prod_hits += 1
+
+    if total < 5:
+        return True  # 太小，不判断
+
+    pl_ratio = pl_cost / total
+    prod_ratio = prod_hits / max(len(names_set), 1)
+
+    # P&L占比>50% 且 产品命中率<30% → 很可能是P&L表
+    if pl_ratio > 0.5 and prod_ratio < 0.3:
+        return False
+
+    return True
 
 
 def _select_by_history(pool, names, lines_pack):
@@ -2726,6 +2819,19 @@ def _select_by_history(pool, names, lines_pack):
     if picked:
         picked = _merge_last_period_period_siblings(picked, pool, names)
         sim, hits = _last_period_similarity(names, picked.get("target_table") or [])
+        # 校验：选中的表是不是 P&L 表（分部报告里混了大量损益行）
+        if not _validate_revenue_table(picked, names, hits, sim):
+            _dbg(f"[history] validate FAIL page={picked.get('page_number')} "
+                 f"hits={hits}/{len(names)} sim={sim:.2f} pool={len(pool)} "
+                 f"title={picked.get('title')} — retry without it")
+            # 从池中剔除该表，重新选
+            pool_retry = [c for c in pool if c is not picked]
+            picked2 = _pick_table_by_last_period_names(pool_retry, names, mode="degrade")
+            if picked2:
+                picked = picked2
+                picked2 = _merge_last_period_period_siblings(picked, pool_retry, names)
+                picked = picked2
+                sim, hits = _last_period_similarity(names, picked.get("target_table") or [])
         _dbg(f"[history] hit page={picked.get('page_number')} "
              f"hits={hits}/{len(names)} sim={sim:.2f} pool={len(pool)} title={picked.get('title')}")
         return _clean_item(picked)
@@ -2734,9 +2840,10 @@ def _select_by_history(pool, names, lines_pack):
     if picked:
         return _clean_item(picked)
 
-    # 全 miss，回退到 lines_pack 独立候选
+    # 全 miss，回退到 lines_pack 独立候选（也要过滤错表标题）
     if isinstance(lines_pack, dict) and lines_pack.get("target_table"):
-        return _clean_item(lines_pack)
+        if not _is_never_revenue_title(lines_pack):
+            return _clean_item(lines_pack)
     return None
 
 
@@ -3292,7 +3399,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202502281643617359"
+    code = "AN202602261820064399"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

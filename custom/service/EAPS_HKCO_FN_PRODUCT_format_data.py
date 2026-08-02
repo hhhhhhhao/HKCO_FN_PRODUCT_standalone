@@ -156,7 +156,14 @@ def format_data(res, derived_id, info_code, notice_date, request_id, task_id, re
         ):
             continue
 
-        sdate, rdate = _format_period_dates(year, period_text)
+        # 优先使用 get_res 直接计算的日期
+        start_date_val = _r(item, "start_date", "")
+        end_date_val = _r(item, "end_date", "")
+        if start_date_val and end_date_val:
+            sdate = start_date_val + "T00:00:00.000Z"
+            rdate = end_date_val + "T00:00:00.000Z"
+        else:
+            sdate, rdate = _format_period_dates(year, period_text)
         if not sdate and year:
             try:
                 yi = int(year)
