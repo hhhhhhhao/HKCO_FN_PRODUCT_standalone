@@ -3,14 +3,19 @@
 import re
 from datetime import datetime, timezone
 
-from custom.service.EAPS_HKCO_FN_PRODUCT_get_res import (
-    _cn_year_to_arabic,
-    _extract_year_from_text,
-    _is_period_or_unit_name,
-    format_number,
-)
+from custom.service.EAPS_HKCO_FN_PRODUCT import format_number
 
 _rfn = format_number
+
+
+def _is_period_or_unit_name(name):
+    """Check if the string is a period label or unit name, not a product."""
+    n = str(name or "").strip()
+    return bool(re.match(
+        r"^(20\d{2}|二零|截至|於|于|for|"
+        r"(截至|止)\s*(二零|20\d{2}).{0,12}|"
+        r"千港元|千元|人民幣|人民币|百萬|百万|千美元)$", n
+    ))
 
 def _r(obj, key, default=None):
     """Safe dict access."""

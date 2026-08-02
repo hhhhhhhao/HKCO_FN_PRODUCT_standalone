@@ -1860,7 +1860,21 @@ def _last_period_axis_hits(names, tbl):
 
 def _item_period_year(item):
     """从表标题/横幅/page_lines/首行推断业务年。"""
-    from custom.service.EAPS_HKCO_FN_PRODUCT_get_res import _extract_year_from_text, _cn_year_to_arabic
+    def _extract_year_str(s):
+        """Extract 4-digit year from text; handles both 2024 and 二零二四."""
+        m = re.search(r"20\d{2}", str(s or ""))
+        if m:
+            return m.group(0)
+        m = re.search(r"二[零○〇]([一二三四五六七八九零○〇]{2})", str(s or ""))
+        if m:
+            cn = {"零":"0","〇":"0","○":"0","一":"1","二":"2","三":"3","四":"4",
+                  "五":"5","六":"6","七":"7","八":"8","九":"9"}
+            try:
+                return "20" + "".join(cn[x] for x in m.group(1))
+            except Exception:
+                return ""
+        return ""
+
     chunks = [
         str(r((item, "title"), "") or ""),
     ]
@@ -1881,10 +1895,10 @@ def _item_period_year(item):
         text,
     )
     if m:
-        y = _extract_year_from_text(m.group(1)) or _cn_year_to_arabic(m.group(1))
+        y = _extract_year_str(m.group(1))
         if y:
             return str(y)
-    y = _extract_year_from_text(text) or _cn_year_to_arabic(text)
+    y = _extract_year_str(text)
     return str(y) if y else ""
 
 
