@@ -8,9 +8,6 @@ import re
 import time
 import traceback
 import unicodedata
-from collections import Counter
-from datetime import date, datetime, timezone
-from itertools import zip_longest
 
 from custom.extend.pdfplumber_extend_object import ExtendPlumber
 from custom.utils.public_custom_util import (
@@ -121,21 +118,9 @@ def get_lines(pdf_path,json_path_page_map):
         return lines
 
     with ExtendPlumber.open(pdf_path) as pdf:
-        start = 0
-        end = len(pdf.pages) - 1
-        
-        # start = 109
-        # end = 125
         lines = []
 
         for page_number, pdf_page in enumerate(pdf.pages):
-            if page_number < start or page_number > end:
-                continue
-
-            # print(page_number)
-            if page_number == 150:
-                print
-
             page_lines = []
             if page_number + 1 in json_path_page_map:
                 with open(json_path_page_map[page_number + 1], 'r', encoding='utf-8-sig') as fp:
@@ -1411,12 +1396,6 @@ def _demote_as_region(item):
     return True
 
 
-# 短标题：仅编号/(a) 形式；裸「收入/收益」易命中封面空壳章，不进此档
-_SHORT_REV_TITLE = re.compile(
-    r"^[（\(]?[0-9一二三四五六七八九十]+[）\)\.、．\s]+(收入|收益)\s*$"
-    r"|^[（\(][a-zA-Z][）\)]\s*(收入|收益)\s*$"
-)
-
 
 def _rev_label_n(item):
     """短标题定表用：首列中文/字母产品行数（排除合计等）。"""
@@ -1572,77 +1551,6 @@ def _last_period_product_entries(last_period_data):
         seen.add(n)
         out.append((n, disp))
     return out
-
-
-def _last_period_name_amount_map(last_period_data):
-    """上期 PRODUCTNAME → MBREVENUE map（norm_name为键）。"""
-    out = {}
-    for n, _d in _last_period_product_entries(last_period_data):
-        for row in last_period_data or []:
-            if not isinstance(row, dict):
-                continue
-            if _norm_product_name(row.get("PRODUCTNAME") or "") == n:
-                try:
-                    v = float(row.get("MBREVENUE"))
-                    if abs(v) >= 1e-9:
-                        out[n] = v
-                except Exception:
-                    pass
-                break
-    return out
-
-
-def _last_period_match_score(label, lp_name):
-    """标签与上期产品名的匹配分（0-100）。
-
-    整串命中 / 同字符占比 / 子串方向 / 变体均可得分。
-    定表≥60 为强绑定；<60 仅用于模糊匹配。
-    """
-    lab = _norm_product_name(label)
-    lp = _norm_product_name(lp_name)
-    if not lab or not lp:
-        return 0
-    if lab == lp:
-        return 100
-    # 变体匹配
-    for v in _last_period_name_variants(lp):
-        vn = _norm_product_name(v)
-        if vn and (lab == vn or vn in lab or lab in vn):
-            return 80
-    # 字面重叠率
-    lab_chars = set(lab)
-    lp_chars = set(lp)
-    if not lp_chars:
-        return 0
-    overlap = len(lab_chars & lp_chars)
-    ratio = overlap / len(lp_chars)
-    if ratio >= 0.8:
-        return int(60 * ratio)
-    if ratio >= 0.5:
-        return int(40 * ratio)
-    # 共享核心词(≥2字连续重叠)
-    for i in range(len(lp) - 1):
-        bigram = lp[i:i + 2]
-        if bigram in lab:
-            return 30
-    return 0
-
-
-def _last_period_amt_near(cell_value, ref_amt):
-    """表单元格金额是否接近上期参考金额（松公差，仅用于定列/定行锚）。"""
-    amt = format_number(cell_value)
-    if not amt:
-        return False
-    try:
-        a = float(amt)
-        r = float(ref_amt)
-    except (ValueError, TypeError):
-        return False
-    if abs(r) < 1e-9:
-        return False
-    ratio = abs(a) / abs(r) if abs(r) > 0 else 0
-    # 松公差：0.2–5.0×（只排除数量级差太多的列/行）
-    return 0.2 <= ratio <= 5.0
 
 
 def _is_subseq(short, long):
@@ -3021,23 +2929,6 @@ def get_last_period_data(info_code, request_id, task_id):
                 _dbg(f"[last_period] loaded from last_data.json rows={len(data)}")
                 return data
     return []
-    data_request = {
-        "InfoCode": info_code,
-        "DataTableParam": [
-            {
-                "RELINFOCODE": info_code
-            }
-        ],
-    }
-    try:
-        last_period_data_respond, _ = call_derive(
-            346868, info_code, request_id, data_request, if_log=False
-        )
-        data = (last_period_data_respond or {}).get("data")
-        return data if data is not None else []
-    except Exception as ex:
-        logger.warning("get_last_period_data failed info_code=%s: %s", info_code, ex)
-        return []
 
 # region process_pdf_file
 def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result_info, configs):
