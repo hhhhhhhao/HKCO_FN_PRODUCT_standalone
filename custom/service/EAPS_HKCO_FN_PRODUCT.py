@@ -2316,8 +2316,35 @@ def _col_signal(tbl):
 
 
 
+def _is_direct_product_revenue_disclosure(candidate):
+    """当前公告是否明确声明该表是产品/服务收入构成表。"""
+    title = fullwidth_to_halfwidth(str((candidate or {}).get("title", "") or ""))
+    has_product = bool(re.search(r"產品|产品|商品|服務|服务", title, re.I))
+    has_revenue = bool(re.search(
+        r"收入|收益|營業額|营业额|銷售(?:收入|收益|額)|销售(?:收入|收益|额)|Revenue",
+        title,
+        re.I,
+    ))
+    has_relation = bool(re.search(
+        r"構成|构成|分類|分类|類別|类别|劃分|划分|主要由|分析|明細|明细",
+        title, re.I,
+    ))
+    # 排除虽然同时出现“产品”和“收入”，实质却是贷款、存款等余额分析的标题。
+    balance_subject = bool(re.search(
+        r"貸款|贷款|存款|資產|资产|負債|负债|庫存|库存|存貨|存货|合同負債|合同负债",
+        title,
+    ))
+    accounting_policy = bool(re.search(
+        r"收入確認主要|收入确认主要|確認主要考慮|确认主要考虑|交易價格|交易价格|"
+        r"完成服務日期|完成服务日期|履約義務|履约义务",
+        title,
+    ))
+    return (has_product and has_revenue and has_relation
+            and not balance_subject and not accounting_policy)
+
+
 def _pick_best(pool, names=None):
-    """从候选池选最优表。排序: 标题优先级 > 产品列头 > 收入信号 > 页码。"""
+    """从候选池选最优表。上期产品名+金额是强口径证据。"""
     if not pool:
         return None
     names = list(names or [])
@@ -2331,6 +2358,15 @@ def _pick_best(pool, names=None):
             sig = _col_signal(tbl)
             rev = _has_rev_rows(tbl)
             title = fullwidth_to_halfwidth(str(c.get("title", "") or ""))
+            # 当前公告明确声明“收入由下列产品/服务构成”时，这是直接产品收入
+            # 披露。它必须能够推翻不完整的历史名称命中：公司可能由上期业务
+            # 分部口径切换到本期产品类别口径，历史产品集合不是本期闭集。
+            direct_product_revenue = _is_direct_product_revenue_disclosure(c)
+            explicit_revenue_metric = bool(re.search(
+                r"按.*(?:類別|类别|分部|業務|业务).*(?:經營收入|经营收入|營業收入|营业收入|分部收入)|"
+                r"(?:經營收入|经营收入|營業收入|营业收入|分部收入).*(?:分析|明細|明细|劃分|划分)",
+                title,
+            ))
             # 合約負債/合同负债表降权
             if re.search(r"合約負債|合同负债|合約負债|合同負債", title):
                 rev = 0
@@ -2353,9 +2389,11 @@ def _pick_best(pool, names=None):
                     break
             seg_bonus = 1 if (has_seg_title and len(names) <= 3) else 0
             cost_bonus = 1 if has_cost else 0
-            # 用 min(hits, amt) 作主键：LP名命中但无金额的叙事文本被降权
-            valid_hits = min(hits, amt) if amt > 0 else 0
-            return (valid_hits, hits, rev + seg_bonus + cost_bonus, amt, sig, -pg)
+            # 真正上期金额通常与本期不同。产品身份覆盖是定表主证据，历史金额
+            # 只能在同名、同结构候选之间作最后一级佐证。
+            return (1 if direct_product_revenue else 0,
+                    1 if explicit_revenue_metric else 0,
+                    hits, rev + seg_bonus + cost_bonus, sig, amt, -pg)
         rank = _title_rank(c.get("title", ""))
         sig = _col_signal(tbl)
         return (-rank, sig, -pg)
@@ -2718,7 +2756,6 @@ def get_target_table_from_last_period_data(lines, last_period_data):
 
     picked = _pick_table_by_last_period_names(items, names, mode="degrade")
     if picked:
-        picked = _merge_last_period_period_siblings(picked, items, names)
         sim, hits = _last_period_similarity(names, r((picked, "target_table"), None) or [])
         _dbg(
             f"[last_period] lines-hit page={picked.get('page_number')} "
@@ -2889,18 +2926,29 @@ def _select_by_history(pool, names, lines_pack):
         extra = _clean_item(lines_pack)
         pool = _dedupe_table_candidates(pool + [extra])
 
-    # 多产品时 P&L 主表通常是错表；但单产品公告恰恰要从 P&L 的收入、
-    # 成本、毛利三行构造产品事实，不能被“综合全面收益表”标题硬过滤掉。
-    single_product = len(names) <= 1
-    pool = [
-        c for c in pool
-        if not _is_never_revenue_title(c)
-        or (single_product and _item_is_pl_metric_table(c))
-    ]
+    # 不再按标题硬删除候选。附注、MD&A 和损益表都可能承载唯一有效事实；
+    # 负面标题由 _pick_best 的候选证据降权，原表仍保留给事实层解析。
 
-    picked = _pick_table_by_last_period_names(pool, names, mode="degrade")
+    # 历史名称筛选之前先检查当前公告的直接披露。否则新产品体系与上期完全
+    # 不同时，该表会因 0 个历史名称命中而永远进不了 _pick_best 候选池。
+    direct_pool = [c for c in pool if _is_direct_product_revenue_disclosure(c)]
+    picked = _pick_best(direct_pool, names) if direct_pool else None
+    explicit_metric_pool = []
+    if not picked:
+        for candidate in pool:
+            title = fullwidth_to_halfwidth(str(candidate.get("title", "") or ""))
+            if not re.search(r"經營收入|经营收入|營業收入|营业收入|分部收入", title):
+                continue
+            _sim, metric_hits = _last_period_similarity(
+                names, candidate.get("target_table") or [], allow_char_bag=False
+            )
+            if metric_hits >= max(1, len(names) - 1):
+                explicit_metric_pool.append(candidate)
+        if explicit_metric_pool:
+            picked = _pick_best(explicit_metric_pool, names)
+    if not picked:
+        picked = _pick_table_by_last_period_names(pool, names, mode="degrade")
     if picked:
-        picked = _merge_last_period_period_siblings(picked, pool, names)
         sim, hits = _last_period_similarity(names, picked.get("target_table") or [])
         # 校验：选中的表是不是 P&L 表（分部报告里混了大量损益行）
         if not _validate_revenue_table(picked, names, hits, sim):
@@ -2911,8 +2959,6 @@ def _select_by_history(pool, names, lines_pack):
             pool_retry = [c for c in pool if c is not picked]
             picked2 = _pick_table_by_last_period_names(pool_retry, names, mode="degrade")
             if picked2:
-                picked = picked2
-                picked2 = _merge_last_period_period_siblings(picked, pool_retry, names)
                 picked = picked2
                 sim, hits = _last_period_similarity(names, picked.get("target_table") or [])
         _dbg(f"[history] hit page={picked.get('page_number')} "
@@ -2976,15 +3022,14 @@ def get_target_table(
 
     pool = _dedupe_table_candidates(list(target_tables or []) + scan_items)
 
-    if names:
-        return _select_by_history(pool, names, lines_pack)
-
     if not pool:
         # 无候选，尝试 lines_pack 独立候选
         if isinstance(lines_pack, dict) and lines_pack.get("target_table") and not lines_pack.get("_lp_lines_miss"):
             return _clean_item(lines_pack)
         return None
 
+    if names:
+        return _select_by_history(pool, names, lines_pack)
     return _select_by_structure(pool)
 
 
@@ -3113,6 +3158,7 @@ def _build_extract_result(
         "data": {
             "records": records,
             "pipeline": {
+                **meta,
                 "stage": stage,
                 "stage_label": stage,
                 "message": msg,
@@ -3125,6 +3171,10 @@ def _build_extract_result(
 
 
 def get_last_period_data(info_code, request_id, task_id):
+    # 诊断开关：验证当前公告主流程是否能在无历史数据时完整运行。
+    # 默认关闭，不改变生产行为，也不读取 GT。
+    if str(os.environ.get("HKCO_FN_PRODUCT_DISABLE_LAST_PERIOD", "")).lower() in ("1", "true", "yes"):
+        return []
     path = os.path.join(os.path.dirname(__file__), "..", "..", "tasks", "HKCO_FN_PRODUCT", "last_data.json")
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
@@ -3213,7 +3263,11 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
 
                     # 大小章节切割+获取目标表格
                     target_items = get_target_tables(lines)
-                    source_tables = get_all_source_tables(lines)
+                    # 事实层需要同时看到附注源表和 MD&A/章节候选表。两者只是
+                    # 候选发现来源，仍由每表独立事实资格决定是否采用。
+                    source_tables = _dedupe_table_candidates(
+                        list(get_all_source_tables(lines) or []) + list(target_items or [])
+                    )
                     document_period_text = get_document_period_text(lines)
                     # GT 仅用于 run_backtest.py 的结果评分，禁止参与候选发现或选表。
                     # 即使处于 backtest 模式，也必须走与生产完全相同的抽取路径。
@@ -3488,7 +3542,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202602261820064399"
+    code = "AN202502211643369388"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
