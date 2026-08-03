@@ -1,0 +1,131 @@
+❯ # 香港交易所财报产品收入提取 — 优化提示词
+
+## 任务
+
+优化 `HKCO_FN_PRODUCT` 提取流水线，提升「完全匹配」率。当前：**103/1061 = 9.7%**。
+
+流水线从 1061 份港交所 PDF 公告中提取 `product_name`、`mbrevenue`、`mbcost`、`gross_profit`、`start_date`、`end_date`。
+
+## 文件结构
+
+| 文件                                                                   | 作用                              |
+| ---------------------------------------------------------------------- | --------------------------------- |
+| `run_backtest.py`                                                      | 回测入口：跑提取 → 对 GT → 出报告 |
+| `custom/service/EAPS_HKCO_FN_PRODUCT.py` PDF 解析结果中选目标表        |
+| `custom/service/EAPS_HKCO_FN_PRODUCT_get_res. 类表类型 → 提取产品+金额 |
+| `custom/service/EAPS_HKCO_FN_PRODUCT_format_data.py`                   | 格式化输出                        |
+| `debug_pipeline.py` thon debug_pipeline.py <infocode>`                 |
+| `tasks/HKCO_FN_PRODUCT/ground_truth.json`                              | GT 标注                           |
+| `tasks/HKCO_FN_PRODUCT/last_data.json` 于产品名匹配）                  |
+| `all_selected.json`                                                    | 离线缓存的选表结果                |
+
+## 表类型分类（`classify_table` in get_res.py）
+
+| 类型         | 含义                 | 提取函数        |
+| ------------ | -------------------- | --------------- |
+| 收入\_行产品 | 产品名在行头，收入表 | `extract_type1` |
+| 收入\_列产品 | 产品名在列头，收入表 | `extrac         |
+| 分部\_行产品 | 分部表，产品在行     | `extract_type1` |
+| 分部\_列产品 | 分部表，产品在列     | `extrac         |
+| 损益         | P&L 表               | `extract_type3` |
+| 损益\_单产品 | 单产品公司 P&L       | `extrac         |
+| 百度         | 百度多期间块表       | `extract_type5` |
+
+分类决策链：先用 `is_row_product()` 判断行/列产品（利用 LP 产品名匹配 + `_table_structure_signal`
+结构信号），再结合标题关键词决定最终类型。
+
+## 当前问题分布（958 个非完全匹配）
+
+| 问题类型 | 数量 | 说明                                          |
+| -------- | ---- | --------------------------------------------- |
+| 纯值错   | 307  | 产品名全对、无缺失无多余， profit 值不匹配 GT |
+| 纯多抓   | 258  | 多提取了 GT 没有的产品                        |
+| 又多又少 | 206  | 既缺产品又多产品                              |
+| 纯少抓   | 187  | 缺产品                                        |
+
+按表类型：
+
+- 收入\_行产品: 473
+- 分部\_列产品: 230
+- 分部\_行产品: 88
+- 收入\_列产品: 72
+- 损益/损益\_单产品: 65
+
+## 核心调试方法
+
+```bash
+# 单个文档全链路 debug（最重要）
+python debug_pipeline.py AN202603251820734009
+
+# 批量跑回测
+python run_backtest.py --task HKCO_FN_PRODUCT
+
+# 查看最新结果
+ls -t batch_runs/HKCO_FN_PRODUCT/ | head -1
+```
+
+`debug_pipeline.py` 输出：完整表格 → header/bod类结果 → 提取结果 → GT对比。**调试任何问题都从这里开始。**
+
+## 已有的关键改进（get_res.py）
+
+### 1. 表头 span 行检测 (`extract_type2`, `_row_is_span_label`)
+
+表头中所有列相同文本的行（"經營成本及開支:"×9、"人民幣千元"×6、"收入:"×9）是节标题，跳過不提取产品名。只跳过 ALL
+非空列完全相同的行。
+
+### 2. 产品名清洗 (`extract_type2`, `\_UNIT_NAME
+
+从列头提取产品名时洗掉单位后缀：千港元、百萬元
+
+### 3. 续名拼接 (`extract_type2`)
+
+多層表頭中产品名可能拆分："健康醫療"（上层）+ " 康醫療及休閒"。检测以"及/與/和"开头的 cell →与前值拼接。
+
+### 4. 收入行优先选择 (`extract_type2`, Tier 1/2/3)
+
+不再选第一个有数字的行，而是：Tier1=具体收入标签（來自外界客户、對外銷售等）→ Tier2=通用收入标签（收入/收益等）→
+Tier3=最多有效数字列的行。
+
+### 5. 非产品名过滤
+
+排除：未分配、本集團、集團、綜合、合併、持續經 分部、分部間抵銷等。
+
+### 6. 日期标签检测
+
+排除以"截至/止/於/At/As at"开头的日期行、"六月
+
+### 7. LP 产品名匹配 (`_lp_name_in_cell`, `is_r
+
+模块级函数。短名（≤3 CJK）精确匹配，长名做词边 签（"客户合約之收益--XX"）。
+
+## 建议优化方向
+
+### 优先级 1：纯值错（307 个）
+
+产品名已对，但金额不对。最常见原因：
+
+- **收入行选错**：选了子项（"募集費收入"）而非 ）。改进 Tier1 正则或加入「优先汇总行」逻辑。
+- **期间映射错**：`_find_periods` 返回的列→期间映射与 GT 不一致（特别是跨年报告）。
+- **合计值不匹配**：自动补的合计值与 GT 不同（
+
+- **度量子表头污染**：列头中"收入""成本""金額"`_is_metric_subheader_cell` 可能漏了一些。
+- **span 行未完全修复**：部分跨列标签行仍有残留（如 hdr[16] 有 4 列"於六月三十日"+ 2 列真产品名，unique=3 不被识别为
+  span）。
+- **错表被选中**：`_validate_revenue_table` 已接入选表但可能漏检。
+
+### 优先级 3：纯少抓（187 个）
+
+- **产品列漏映射**：某些列的产品名没被 header 循环捕获。
+- **body fallback 缺失**：当 header 确实没有产y 第一行。
+- **选错表**：`debug_pipeline.py --pdf` 可重跑完整选表流程定位。
+
+## 关键经验
+
+1. **先看数据再写代码**。每个 infocode 用 `debug_pipeline.py` 看完整链路，对比 GT 一眼看出问题在哪一步。
+2. **选表 > 分类 > 提取**。表选错了后面全错， UCT.py`。
+3. **不要兜底/fallback 逻辑**。用户明确反对。应在分类/选表层面修根因。
+4. **用 LP 数据判断**。`is_row_product` 中 LP 。
+5. **检查 page_lines**。某些文档特性（百度表、特定公司格式）可通过 `page_lines` 检测。
+6. **先列问题再方案**。列出 infocode + 问题 +
+
+不能改run_backtest.py

@@ -1578,7 +1578,7 @@ def extract_type2(table, last_period_data=None):
     _REV_EXT = re.compile(r'對外交易|对外交易|外部客户|外部客戶|來自外部|来自外部|外界客户|外界客戶')
     for r in body:
         lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
-        if _REV_EXT.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅", lab):
+        if _REV_EXT.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息", lab):
             if any(re.search(r"\d", str(r[c] or "")) for c in range(1, len(r))):
                 revenue_row = r
                 break
@@ -1589,7 +1589,7 @@ def extract_type2(table, last_period_data=None):
         candidates = []
         for r in body:
             lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
-            if _REV_GEN.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息|确认|時間|間", lab):
+            if _REV_GEN.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息", lab):
                 valid_cols = sum(1 for c in range(1, len(r))
                                if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
                 if valid_cols > 0:
@@ -1609,7 +1609,7 @@ def extract_type2(table, last_period_data=None):
         gen_candidates = []
         for r in body:
             lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
-            if _REV_ANY.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅", lab):
+            if _REV_ANY.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息", lab):
                 valid_cols = sum(1 for c in range(1, len(r))
                                if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
                 if valid_cols > 0:
@@ -1651,7 +1651,7 @@ def extract_type2(table, last_period_data=None):
                 if r is revenue_row:
                     continue
                 lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
-                if _REV_ANY.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅", lab):
+                if _REV_ANY.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息", lab):
                     valid_cols = sum(1 for c in range(1, len(r))
                                    if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
                     if valid_cols > n_valid:
@@ -1659,12 +1659,24 @@ def extract_type2(table, last_period_data=None):
             if better_candidates:
                 better_candidates.sort(key=lambda x: -x[0])
                 revenue_row = better_candidates[0][1]
-    # Pass 4: 兜底任一有数字的行
+    # Pass 4: 兜底 — 优先空col0合计行，再选最多有效列的行
     if not revenue_row:
+        best = None
+        best_score = (-1, -1)
         for r in body:
-            if any(re.search(r"\d", str(c or "")) for c in r[1:]):
-                revenue_row = r
-                break
+            lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+            is_total_row = (not lab)  # 空col0 = 合计行，最可靠
+            valid_cols = sum(1 for c in range(1, len(r))
+                           if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
+            if valid_cols == 0:
+                continue
+            # 合计行优先，其次有效列多的
+            score = (1 if is_total_row else 0, valid_cols)
+            if score > best_score:
+                best_score = score
+                best = r
+        if best:
+            revenue_row = best
 
     if not revenue_row or not products:
         return []
