@@ -33,6 +33,18 @@ def _format_product_name(name):
     # Remove period/time suffixes
     name = re.sub(r"[,，]\s*(於某個時間點|于某个时间点|於某一時間點|于某一时间点|"
                   r"隨時間|随时间).{0,24}(\s|$)", "", name)
+    # IFRS15 表常把确认方式用破折号拼在产品后面；这是产品属性，不是名称。
+    name = re.sub(
+        r"\s*[-–—]\s*(?:於|于|在)?(?:某一|某個|某个|特定)?"
+        r"(?:時間點|时间点|時點|时点)(?:確認|确认)?\s*$",
+        "",
+        name,
+    )
+    name = re.sub(
+        r"\s*[-–—]\s*(?:隨|随)(?:著|着)?(?:時間|时间)(?:推移)?(?:確認|确认)?\s*$",
+        "",
+        name,
+    )
     name = name.strip(" ,，")
     # 合计 normalization
     if re.fullmatch(r"合計|合计|總計|总计|總額|总额|總收入|总收入|總收益|总收益", name):

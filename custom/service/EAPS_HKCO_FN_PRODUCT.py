@@ -693,6 +693,57 @@ def get_target_tables(lines):
     return target_tables
 
 
+def get_all_source_tables(lines):
+    """收集整份公告中的原始表，供收入/成本/毛利跨表取证。
+
+    与 get_target_tables 不同，这里不按收入标题切章，也不排除毛利率、
+    成本附注或损益表；每个 MinerU 表格都是一个独立证据来源。
+    """
+    items = []
+    seen = set()
+    for index, line in enumerate(lines or []):
+        table = line.get("table") if isinstance(line, dict) else None
+        if not table:
+            continue
+        page = line.get("page_number")
+        title = ""
+        for prev in reversed((lines or [])[max(0, index - 8):index]):
+            if not isinstance(prev, dict) or prev.get("page_number") != page:
+                continue
+            if prev.get("is_table"):
+                continue
+            text = str(prev.get("text") or "").strip()
+            if text and not re.fullmatch(r"\d+", text):
+                title = text[:300]
+                break
+        signature = repr(table)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        items.append({
+            "title": title,
+            "page_number": page,
+            "target_table": table,
+            "page_lines": [line],
+            "source_role": "document_table",
+        })
+    return items
+
+
+def get_document_period_text(lines):
+    """汇集公告级年度期间语句，供表头缺失截止日时兜底。"""
+    snippets = []
+    for line in lines or []:
+        if not isinstance(line, dict) or line.get("is_table"):
+            continue
+        text = str(line.get("text") or "").strip()
+        if not text:
+            continue
+        if re.search(r"止(?:財政|财政)?年度|年度(?:業績|业绩)|financial\s+year\s+ended|year\s+ended", text, re.I):
+            snippets.append(text[:500])
+    return " ".join(snippets[:120])
+
+
 def r(*args):
     for arg in args:
         if isinstance(arg, tuple):
@@ -2838,8 +2889,14 @@ def _select_by_history(pool, names, lines_pack):
         extra = _clean_item(lines_pack)
         pool = _dedupe_table_candidates(pool + [extra])
 
-    # 硬规则：非收入表标题直接排除
-    pool = [c for c in pool if not _is_never_revenue_title(c)]
+    # 多产品时 P&L 主表通常是错表；但单产品公告恰恰要从 P&L 的收入、
+    # 成本、毛利三行构造产品事实，不能被“综合全面收益表”标题硬过滤掉。
+    single_product = len(names) <= 1
+    pool = [
+        c for c in pool
+        if not _is_never_revenue_title(c)
+        or (single_product and _item_is_pl_metric_table(c))
+    ]
 
     picked = _pick_table_by_last_period_names(pool, names, mode="degrade")
     if picked:
@@ -3156,6 +3213,8 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
 
                     # 大小章节切割+获取目标表格
                     target_items = get_target_tables(lines)
+                    source_tables = get_all_source_tables(lines)
+                    document_period_text = get_document_period_text(lines)
                     gt_page = _get_gt_target_page(info_code) if backtest else None
                     # 补充 GT 页候选：跨页章节复制 + 直接解析 GT 页 JSON
                     if backtest and gt_page is not None:
@@ -3181,6 +3240,8 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                         reason_arr,
                         notice_date=notice_date,
                         last_period_data=last_period_data,
+                        source_tables=source_tables,
+                        document_period_text=document_period_text,
                     )
 
                     # 格式化入库字段

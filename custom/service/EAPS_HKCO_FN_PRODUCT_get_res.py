@@ -106,6 +106,25 @@ def _detect_currency(table):
     return ""
 
 
+def _detect_document_currency(source_tables, target_page=None):
+    """目标表未写币种时，从同一公告的其他财务表推断呈列币种。"""
+    scores = {}
+    for item in source_tables or []:
+        table = item.get("target_table") if isinstance(item, dict) else item
+        title = str(item.get("title", "") or "") if isinstance(item, dict) else ""
+        # 汇率换算说明中的币种不是报表呈列币种。
+        if re.search(r"匯率|汇率|換算|换算|外幣折算|外币折算", title):
+            continue
+        currency = _detect_currency(table)
+        if not currency:
+            continue
+        page = item.get("page_number") if isinstance(item, dict) else None
+        distance = abs(page - target_page) if isinstance(page, int) and isinstance(target_page, int) else 20
+        # 每张明确标注币种的财务表投一票，邻近目标表者权重更高。
+        scores[currency] = scores.get(currency, 0.0) + 1.0 + 1.0 / (1.0 + distance / 20.0)
+    return max(scores, key=scores.get) if scores else ""
+
+
 def _detect_unit(table, currency=""):
     """从表头检测金额单位。返回 unit code: 001=元, 002=千元, 004=百万元。
 
@@ -163,6 +182,35 @@ def _detect_unit(table, currency=""):
     if _has_large_raw_numbers:
         return "001"  # 数值过大不可能是千元
     return ""
+
+
+def _detect_explicit_unit(table):
+    """只识别表中明示的单位，不做币种/数值量级猜测。"""
+    if not isinstance(table, list):
+        return ""
+    text = " ".join(str(cell or "") for row in table[:20]
+                    if isinstance(row, list) for cell in row)
+    if re.search(r"百萬|百万", text):
+        return "004"
+    if re.search(r"(?<!百)千元|(?<!百萬)千港元|千美元|千令吉|千新加坡元|"
+                 r"人民幣千元|人民币千元|港幣千元|港币千元", text):
+        return "002"
+    if re.search(r"(?:單位|单位|以)\s*[：:]?\s*元\b|以元[計计]|\(元\)|（元）", text):
+        return "001"
+    return ""
+
+
+def _detect_document_unit(source_tables, target_page=None):
+    scores = {}
+    for item in source_tables or []:
+        table = item.get("target_table") if isinstance(item, dict) else item
+        unit = _detect_explicit_unit(table)
+        if not unit:
+            continue
+        page = item.get("page_number") if isinstance(item, dict) else None
+        distance = abs(page - target_page) if isinstance(page, int) and isinstance(target_page, int) else 20
+        scores[unit] = scores.get(unit, 0.0) + 1.0 + 1.0 / (1.0 + distance / 20.0)
+    return max(scores, key=scores.get) if scores else ""
 
 
 def classify_table(table, title, last_period_data, page_lines=None):
@@ -891,6 +939,29 @@ def is_row_product(table, last_period_data=None):
                       if _row_match(n, r)
                       and not _UNIT_RE.search(str(r[0] or ""))
                       and _row_has_real_amount(r))
+        # 有些收入表把父产品写成无金额分组行，金额放在若干子项后的空标签小计行。
+        # 这仍然是行产品结构，不能因为 LP 父产品行自身为空就误判成列产品。
+        parent_subtotal_hit = 0
+        for n in names:
+            for idx, r in enumerate(rows):
+                if not _row_match(n, r) or _row_has_real_amount(r):
+                    continue
+                saw_prefixed_child = False
+                for following in rows[idx + 1:idx + 6]:
+                    label = str(following[0] or "").strip() if following else ""
+                    if re.match(r'^[-\–—]{1,3}', label):
+                        saw_prefixed_child = True
+                    if not label and saw_prefixed_child and _row_has_real_amount(following):
+                        parent_subtotal_hit += 1
+                        break
+                    # 下一父项开始，当前父项没有找到小计。
+                    if label and any(_lp_name_in_cell(other, label) for other in names):
+                        break
+                break
+        # 单个偶然空标签金额行很常见（单位/年份表头、版式残片）；至少两个
+        # LP 父项都呈现同一结构，才足以改变整表轴向分类。
+        if parent_subtotal_hit >= 2:
+            row_hit += parent_subtotal_hit
         # 在表头列的 cols 0+ 中匹配 → 排除有真实金额的数据行
         # 洗掉单位后缀（\n千港元）再匹配，否则短 LP 名会被拒绝（"批發"≠"批發\n千港元"）
         def _clean_cell(v):
@@ -1143,7 +1214,298 @@ def _inject_cost_and_profit_from_full_table(full_table, rows, trimmed_table, typ
         _match_inject([seg_row], "gross_profit", yr_re)
 
 
-def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=None):
+def _metric_label_field(text):
+    label = fullwidth_to_halfwidth(str(text or "")).replace(" ", "")
+    if re.search(r"毛利率|毛利潤率|毛利润率|grossmargin", label, re.I):
+        return ""
+    if re.search(r"毛利|毛虧|毛亏|grossprofit", label, re.I):
+        return "gross_profit"
+    if re.search(r"銷售成本|销售成本|營業成本|营业成本|服務成本|服务成本|"
+                 r"收入成本|收益成本|直接成本|costofsales|costofrevenue", label, re.I):
+        return "mbcost"
+    return ""
+
+
+def _metric_product_key(name):
+    text = fullwidth_to_halfwidth(str(name or "")).strip()
+    text = re.sub(r"[\s'\"‘’“”]+", "", text)
+    text = re.sub(r"^(?:[-–—•]+)", "", text)
+    text = re.sub(r"(?:人民幣|人民币|港幣|港币|美元|港元)?(?:千元|千港元|百萬元|百万元)$", "", text)
+    if re.match(r"^(?:合計|合计|總計|总计|總額|总额|綜合|综合)$", text):
+        return "合计"
+    return text
+
+
+def _collect_metric_facts(source_tables, revenue_rows):
+    """从全公告表格提取成本/毛利字段事实，不直接生成产品记录。"""
+    canonical = []
+    for item in revenue_rows or []:
+        name = str(item.get("product_name", "") or "").strip()
+        if name and name not in canonical:
+            canonical.append(name)
+    time_axis_re = re.compile(
+        r"^(?:於|于|在)?(?:某一|某個|某个|特定)?(?:時間點|时间点|時點|时点)|"
+        r"^(?:隨|随)(?:著|着)?(?:時間|时间)"
+    )
+    geo_re = re.compile(
+        r"^(?:中國|中国|中國內地|中国内地|中國大陸|中国大陆|香港|澳門|澳门|"
+        r"台灣|台湾|美國|美国|日本|韓國|韩国|新加坡|馬來西亞|马来西亚|其他)$"
+    )
+    geo_count = sum(bool(geo_re.fullmatch(name)) for name in canonical)
+    canonical = [name for name in canonical
+                 if not time_axis_re.search(name)
+                 and not (geo_count >= 2 and geo_re.fullmatch(name))]
+    total_names = [name for name in canonical if _metric_product_key(name) == "合计"]
+    non_total = [name for name in canonical if _metric_product_key(name) != "合计"]
+
+    def match_product(value):
+        raw = _metric_product_key(value)
+        if not raw:
+            return ""
+        exact = [name for name in canonical if _metric_product_key(name) == raw]
+        if len(exact) == 1:
+            return exact[0]
+        partial = [name for name in canonical
+                   if raw in _metric_product_key(name) or _metric_product_key(name) in raw]
+        return partial[0] if len(partial) == 1 else ""
+
+    facts = []
+    for source in source_tables or []:
+        table = source.get("target_table") if isinstance(source, dict) else None
+        if not isinstance(table, list) or not table:
+            continue
+        table = [list(row) if isinstance(row, list) else row for row in table]
+        width = max((len(row) for row in table if isinstance(row, list)), default=0)
+        for index in range(min(6, len(table))):
+            row = table[index]
+            if (isinstance(row, list) and len(row) == width - 1
+                    and any(re.search(r"千元|千港元|百萬|百万|毛利率|%", str(cell or ""))
+                            for cell in row)):
+                table[index] = [""] + row
+        page = source.get("page_number") if isinstance(source, dict) else None
+        title = source.get("title", "") if isinstance(source, dict) else ""
+        periods = _find_periods(table)
+        period_by_col = {col: (sd, ed) for col, _year, sd, ed in periods}
+
+        # 产品在列：产品表头 + 成本/毛利指标行。
+        product_cols = {}
+        for row in table[:10]:
+            if not isinstance(row, list):
+                continue
+            for col, cell in enumerate(row):
+                product = match_product(cell)
+                if product:
+                    product_cols[col] = product
+        for row in table:
+            if not isinstance(row, list) or len(row) < 2:
+                continue
+            label_blob = " ".join(str(cell or "") for cell in row[:min(3, len(row))])
+            field = _metric_label_field(label_blob)
+            if not field:
+                continue
+            # 单产品公告的综合损益表通常完全不重复产品名称。表内其他标题或
+            # 附注偶然命中“合计”等词时，不能因此把它误判成产品在列结构。
+            unique_product = non_total[0] if len(non_total) == 1 else ""
+            explicit_unique_product = unique_product and unique_product in product_cols.values()
+            if unique_product and not explicit_unique_product:
+                candidate_cols = list(range(1, len(row)))
+                dated_cols = [col for col in candidate_cols if col in period_by_col]
+                if dated_cols:
+                    candidate_cols = dated_cols
+                numeric_values = [(_to_num(row[col]), col) for col in candidate_cols
+                                  if "%" not in str(row[col] or "")]
+                numeric_values = [(value, col) for value, col in numeric_values if value is not None]
+                # 没解析出期间时，排除损益表的数字附注号（如“3”）。
+                if not dated_cols and len(numeric_values) > 1:
+                    material = [(value, col) for value, col in numeric_values if abs(value) >= 100]
+                    if material:
+                        numeric_values = material
+                for value, col in numeric_values:
+                    sd, ed = period_by_col.get(col, ("", ""))
+                    for product in ([unique_product] + total_names):
+                        facts.append({"field": field, "product_name": product,
+                                      "value": abs(value) if field == "mbcost" else value,
+                                      "start_date": sd, "end_date": ed,
+                                      "column": col,
+                                      "granularity": "total" if product in total_names else "product",
+                                      "source_page": page, "confidence": 0.96})
+            elif product_cols:
+                for col, product in product_cols.items():
+                    if col >= len(row) or "%" in str(row[col] or ""):
+                        continue
+                    value = _to_num(row[col])
+                    if value is None:
+                        continue
+                    sd, ed = period_by_col.get(col, ("", ""))
+                    facts.append({"field": field, "product_name": product,
+                                  "value": abs(value) if field == "mbcost" else value,
+                                  "start_date": sd, "end_date": ed,
+                                  "column": col,
+                                  "granularity": "product", "source_page": page,
+                                  "confidence": 1.0})
+
+        # 产品在行：列头明确写成本/毛利，或整张表是毛利明细。
+        column_roles = {}
+        percentage_cols = set()
+        for col in range(1, width):
+            header_blob = " ".join(
+                str(row[col] or "") for row in table[:6]
+                if isinstance(row, list) and col < len(row)
+            )
+            if re.search(r"%|百分比|毛利率|利潤率|利润率|比率", header_blob):
+                percentage_cols.add(col)
+            field = _metric_label_field(header_blob)
+            if field and not re.search(r"%|百分比|比率", header_blob):
+                column_roles[col] = field
+        table_blob = fullwidth_to_halfwidth(
+            str(title or "") + " " + " ".join(str(cell or "") for row in table[:5]
+                                                  if isinstance(row, list) for cell in row)
+        )
+        gp_detail = bool(re.search(
+            r"毛利明細|毛利明细|按.*毛利|毛利與毛利率|毛利与毛利率|毛利率|grossmargin",
+            table_blob,
+            re.I,
+        ))
+        context_field = ""
+        for row in table:
+            if not isinstance(row, list) or not row:
+                continue
+            row_label = " ".join(str(cell or "") for cell in row[:2])
+            section_field = _metric_label_field(row_label)
+            product = match_product(row[0]) or (match_product(row[1]) if len(row) > 1 else "")
+            if section_field and not product:
+                context_field = section_field
+                continue
+            if not product:
+                continue
+            roles = dict(column_roles)
+            if not roles and (context_field or gp_detail):
+                inferred = context_field or "gross_profit"
+                for col in range(1, len(row)):
+                    if col in percentage_cols:
+                        continue
+                    cell = str(row[col] or "")
+                    if "%" in cell:
+                        continue
+                    if _to_num(cell) is not None:
+                        roles[col] = inferred
+            for col, field in roles.items():
+                if col >= len(row) or "%" in str(row[col] or ""):
+                    continue
+                value = _to_num(row[col])
+                if value is None:
+                    continue
+                sd, ed = period_by_col.get(col, ("", ""))
+                facts.append({"field": field, "product_name": product,
+                              "value": abs(value) if field == "mbcost" else value,
+                              "start_date": sd, "end_date": ed,
+                              "column": col,
+                              "granularity": "total" if product == "合计" else "product",
+                              "source_page": page, "confidence": 0.99})
+    return facts
+
+
+def _merge_metric_facts(rows, facts):
+    """按产品、期间、粒度把显式成本/毛利事实合并到收入骨架。"""
+    latest_year = max((str(row.get("end_date") or row.get("year") or "")[:4]
+                       for row in (rows or []) if str(row.get("end_date") or row.get("year") or "")[:4]),
+                      default="")
+    for row in rows or []:
+        product = str(row.get("product_name", "") or "").strip()
+        for field in ("mbcost", "gross_profit"):
+            if row.get(field):
+                continue
+            candidates = [fact for fact in facts
+                          if fact["field"] == field and fact["product_name"] == product]
+            if not candidates:
+                continue
+            row_year = str(row.get("end_date") or row.get("year") or "")[:4]
+            if row_year and row_year == latest_year:
+                # 港交所比较表通常当前期在最左；部分复杂表头的通用期间解析会偏一列。
+                min_col = min((fact.get("column", 10 ** 6) for fact in candidates), default=10 ** 6)
+                left = [fact for fact in candidates if fact.get("column", 10 ** 6) == min_col]
+                if left:
+                    candidates = left
+            else:
+                same_period = [fact for fact in candidates
+                               if fact.get("start_date") == row.get("start_date")
+                               and fact.get("end_date") == row.get("end_date")]
+                if same_period:
+                    candidates = same_period
+                target_year = str(row.get("year") or row.get("end_date") or "")[:4]
+                year_matches = [fact for fact in candidates
+                                if target_year and target_year in str(fact.get("end_date") or "")]
+                if year_matches:
+                    candidates = year_matches
+            best = max(candidates, key=lambda fact: fact.get("confidence", 0))
+            row[field] = str(int(best["value"]) if float(best["value"]).is_integer()
+                             else best["value"])
+
+    # 产品级显式事实齐全时，合计由同期间产品求和；不使用集团值广播到产品。
+    for total_row in [row for row in (rows or []) if row.get("product_name") == "合计"]:
+        for field in ("mbcost", "gross_profit"):
+            if total_row.get(field):
+                continue
+            products = [row for row in (rows or [])
+                        if row.get("product_name") != "合计"
+                        and row.get("start_date") == total_row.get("start_date")
+                        and row.get("end_date") == total_row.get("end_date")]
+            if products and all(_to_num(row.get(field)) is not None for row in products):
+                value = sum(_to_num(row.get(field)) for row in products)
+                total_row[field] = str(int(value) if float(value).is_integer() else value)
+
+
+def _infer_document_fiscal_month_day(document_period_text):
+    """从明确的“止年度”语句投票选公告财年截止月日。"""
+    from collections import Counter
+    text = str(document_period_text or "")
+    votes = Counter()
+    for match in re.finditer(r"止(?:財政|财政)?年度|financial\s+year\s+ended|year\s+ended", text, re.I):
+        window = text[max(0, match.start() - 80):match.end() + 20]
+        month_day = _extract_month_day(window)
+        if month_day:
+            votes[month_day] += 1
+    return votes.most_common(1)[0][0] if votes else None
+
+
+def _apply_document_fiscal_context(rows, target_table, document_period_text):
+    """目标表未写截止日时，用公告级财年截止日替换默认的12月31日。"""
+    import calendar
+    import datetime
+    table_text = " ".join(str(cell or "") for row in (target_table or [])
+                          if isinstance(row, list) for cell in row)
+    if _extract_month_day(table_text):
+        return
+    # “2025年度”本身是表内明确的自然年度口径，优先级高于公告其他章节
+    # 出现的资产负债表日或子公司非自然财年日期。
+    if re.search(r"(?:20\d{2}|二零[一二三四五六七八九零〇○]{2})\s*年度", table_text):
+        return
+    fiscal_md = _infer_document_fiscal_month_day(document_period_text)
+    if not fiscal_md or fiscal_md == (12, 31):
+        return
+    end_month, end_day = fiscal_md
+    for row in rows or []:
+        try:
+            old_start = datetime.date.fromisoformat(str(row.get("start_date") or ""))
+            old_end = datetime.date.fromisoformat(str(row.get("end_date") or ""))
+        except ValueError:
+            continue
+        # 只接管公共解析器的自然年默认值；显式季度/中期日期保持表内证据。
+        if (old_end.month, old_end.day) != (12, 31):
+            continue
+        duration = (old_end.year - old_start.year) * 12 + old_end.month - old_start.month + 1
+        duration = duration if duration in (3, 6, 9, 12) else 12
+        day = min(end_day, calendar.monthrange(old_end.year, end_month)[1])
+        new_end = datetime.date(old_end.year, end_month, day)
+        month_index = new_end.year * 12 + (new_end.month - 1) - (duration - 1)
+        start_year, start_month0 = divmod(month_index, 12)
+        new_start = datetime.date(start_year, start_month0 + 1, 1)
+        row["start_date"] = new_start.isoformat()
+        row["end_date"] = new_end.isoformat()
+
+
+def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=None,
+            source_tables=None, document_period_text=""):
     res = {"target_res": [], "pipe_meta": {"selected_count": 0, "source_pages": []}}
     if not selected: reason_arr.append("未选到目标表"); return res
 
@@ -1231,13 +1593,28 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
 
     # 检测币种并注入每条记录
     currency = _detect_currency(target_table)
+    if not currency:
+        currency = _detect_document_currency(source_tables, page_number)
     if currency:
         for r in rows:
             if not r.get("currency"):
                 r["currency"] = currency
 
     # 检测单位（百万元/千元/元）并注入每条记录
-    unit_code = _detect_unit(target_table, currency)
+    unit_code = _detect_explicit_unit(target_table)
+    if not unit_code:
+        target_numbers = [
+            abs(value) for row in target_table[:20] if isinstance(row, list)
+            for value in [_amount_value(cell) for cell in row[1:]] if value is not None
+        ]
+        # 十亿/百亿量级且表头未写千/百万，强证据为原始“元”；其可信度
+        # 高于公告中其他附注表常用的“千元”。
+        if target_numbers and max(target_numbers) > 1e8:
+            unit_code = "001"
+    if not unit_code:
+        unit_code = _detect_document_unit(source_tables, page_number)
+    if not unit_code:
+        unit_code = _detect_unit(target_table, currency)
     if unit_code:
         for r in rows:
             if not r.get("unit"):
@@ -1246,6 +1623,8 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
     # 分部表：从原始（未截断）全表中提取 GROSS_PROFIT 和 MBCOST
     if full_table:
         _inject_cost_and_profit_from_full_table(full_table, rows, target_table, typ)
+
+    _apply_document_fiscal_context(rows, target_table, document_period_text)
 
     # 后处理：过滤明显的P&L噪声行（短标签+精确匹配PL模式+不在LP中）
     if len(rows) > 1:
@@ -1261,6 +1640,14 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
                 continue
             filtered.append(r)
         rows = filtered
+
+    # 多表字段事实必须在产品骨架清洗后执行。否则“中國/其他/某一時點”
+    # 等分解维度会被误当成产品，单产品损益表也无法识别唯一产品。
+    if source_tables and rows:
+        metric_facts = _collect_metric_facts(source_tables, rows)
+        res["pipe_meta"]["source_table_count"] = len(source_tables)
+        res["pipe_meta"]["metric_fact_count"] = len(metric_facts)
+        _merge_metric_facts(rows, metric_facts)
 
     res["target_res"] = rows
     return res
@@ -1393,6 +1780,29 @@ def _clean_product_name(name):
 
 def extract_type1(table, last_period_data=None):
     """从行产品表中提取，用上期产品名过滤"""
+    # 同列上下堆叠多个年度时，每个块必须独立解析期间。过去把全表压成一组
+    # column periods，随后同产品同期间取绝对值最大，实际会把上期金额覆盖本期。
+    block_starts = []
+    for index, row in enumerate(table or []):
+        if not isinstance(row, list):
+            continue
+        blob = " ".join(str(cell or "") for cell in row)
+        if (re.search(r"(?:截至|止).{0,24}(?:20\d{2}|二零[一二三四五六七八九零〇○]{2}).{0,24}(?:年度|年內|年内)", blob)
+                or re.search(r"(?:20\d{2}|二零[一二三四五六七八九零〇○]{2}).{0,24}止年度", blob)):
+            block_starts.append(index)
+    if len(block_starts) >= 2:
+        merged = []
+        for pos, start in enumerate(block_starts):
+            end = block_starts[pos + 1] if pos + 1 < len(block_starts) else len(table)
+            block = table[start:end]
+            if len(block) >= 2:
+                merged.extend(extract_type1(block, last_period_data))
+        deduped = {}
+        for item in merged:
+            key = (item.get("product_name"), item.get("start_date"), item.get("end_date"))
+            deduped[key] = item
+        return list(deduped.values())
+
     _, data_rows = _split_header_body(table)
     periods = _find_periods(table)
     sub_metrics = _detect_subcolumn_metrics(table)
@@ -1415,7 +1825,34 @@ def extract_type1(table, last_period_data=None):
     # 1. 全量提取原始行
     raw = []  # [(name, [(col, sd, ed, value), ...]), ...]
     last_parent = ""  # 层级父产品名（用于 -- 前缀的子项）
-    for row in data_rows:
+    # 通常只扫 data_rows，避免年份/单位/说明行成为伪产品。唯一补回的是紧邻
+    # “-子项”的无金额父行，它决定父子路径，拆表时会被误归入 header。
+    data_row_ids = {id(row) for row in data_rows}
+    lp_exact_names = {
+        fullwidth_to_halfwidth(str(item.get("PRODUCTNAME", "") or "").strip())
+        for item in (last_period_data or []) if isinstance(item, dict)
+    }
+    rows_to_scan = []
+    explicit_subtotal_parents = set()
+    for idx, row in enumerate(table):
+        if not isinstance(row, list) or len(row) < 2:
+            continue
+        next_label = ""
+        if idx + 1 < len(table) and isinstance(table[idx + 1], list) and table[idx + 1]:
+            next_label = str(table[idx + 1][0] or "").strip()
+        is_parent_before_child = (
+            bool(str(row[0] or "").strip())
+            and fullwidth_to_halfwidth(str(row[0] or "").strip()) in lp_exact_names
+            and not any(_amount_value(cell) is not None for cell in row[1:])
+            and bool(re.match(r'^[-\–—]{1,3}', next_label))
+        )
+        if id(row) in data_row_ids or is_parent_before_child:
+            rows_to_scan.append(row)
+        if is_parent_before_child:
+            explicit_subtotal_parents.add(
+                fullwidth_to_halfwidth(str(row[0] or "").strip())
+            )
+    for row in rows_to_scan:
         if not isinstance(row, list) or len(row) < 2:
             continue
         name = fullwidth_to_halfwidth(str(row[0] or "").strip())
@@ -1439,7 +1876,12 @@ def extract_type1(table, last_period_data=None):
 
         has_cjk = bool(re.search(r"[一-鿿A-Za-z]", name))
         if not name and any(re.search(r'\d', str(c or "")) for c in row[1:]):
-            name = "合计"
+            # 默认沿用全表合计语义；只有明确父级小计结构才继承父产品名。
+            name = last_parent if last_parent in explicit_subtotal_parents else "合计"
+            # 仅明确识别出的“LP父项→破折号子项→空标签小计”允许继承后
+            # 重新成为产品；普通空标签行维持旧过滤语义。
+            if last_parent in explicit_subtotal_parents:
+                has_cjk = True
         if re.match(r"^(合[计計]|總[计計]|总[计計]|小[计計]|總額|总额|"
                      r"收入總額|收入总额|收益總額|收益总额|"
                      r"淨收入總額|净收入总额|淨收益總額|净收益总额|"
@@ -1482,6 +1924,23 @@ def extract_type1(table, last_period_data=None):
               for r in (last_period_data or [])
               if isinstance(r, dict)]
     lp_names = [n for n in lp_raw if n != "合计"]
+
+    # 父产品自身有金额小计且 LP 也要求父产品时，下面的明细只用于证明小计，
+    # 不应再作为新产品输出；LP 明确要求的父子产品仍然保留。
+    raw_name_set = {name for name, _vals in raw}
+    subtotal_parents = {
+        parent for parent in lp_names
+        if parent in raw_name_set
+        and any(name.startswith(parent + "--") for name in raw_name_set)
+    }
+    if subtotal_parents:
+        raw = [
+            (name, vals) for name, vals in raw
+            if not any(
+                name.startswith(parent + "--") and name not in lp_names
+                for parent in subtotal_parents
+            )
+        ]
 
     def _to_num(v):
         s = str(v).replace(",", "").replace("(", "-").replace(")", "")
@@ -1613,6 +2072,17 @@ def extract_type1(table, last_period_data=None):
     # 4. 格式化输出 + 值级别去重 + 自动补合计
     out = []
     for name, vals in raw:
+        # 表内常把会计分类前缀并入产品名（主营业务-、其他业务--、分部名--），
+        # 而产品主数据只保存稳定叶子名。历史产品唯一作为当前名称后缀时，
+        # 将它视为正式名称映射，不再只用于“是否保留”判断。
+        if lp_names and name != "合计" and name not in lp_names:
+            suffix_matches = [lp for lp in lp_names
+                              if len(lp) >= 2 and name.endswith(lp)]
+            if suffix_matches:
+                longest = max(len(lp) for lp in suffix_matches)
+                best = [lp for lp in suffix_matches if len(lp) == longest]
+                if len(best) == 1:
+                    name = best[0]
         for sd, ed, v in vals:
             out.append({"product_name": name, "mbrevenue": v,
                         "start_date": sd, "end_date": ed,
@@ -1683,6 +2153,33 @@ def _extract_years_from_text(text):
     return years
 
 
+def _chinese_calendar_number(token):
+    """解析日期中的一至三十一；不复用通用中文数字函数，避免二零二四被求和。"""
+    digits = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+              "六": 6, "七": 7, "八": 8, "九": 9}
+    token = str(token or "")
+    if token == "十":
+        return 10
+    if "十" in token:
+        left, right = token.split("十", 1)
+        return (digits.get(left, 1) * 10) + digits.get(right, 0)
+    return digits.get(token)
+
+
+def _extract_month_day(text):
+    m = re.search(r"(?:\d{4}\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日", str(text or ""))
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    cn_num = r"(?:三十[一]?|二十[一二三四五六七八九]?|十[一二三四五六七八九]?|[一二三四五六七八九])"
+    m = re.search(rf"({cn_num})月\s*({cn_num})日", str(text or ""))
+    if m:
+        month = _chinese_calendar_number(m.group(1))
+        day = _chinese_calendar_number(m.group(2))
+        if month and day:
+            return month, day
+    return None
+
+
 def extract_type1_parent_child(table, last_period_data=None):
     """行产品专类：LP 使用「父项:子项」，表内父子行没有破折号。"""
     rows = extract_type1(table, last_period_data)
@@ -1733,10 +2230,22 @@ def _find_periods(table):
 
     text = " ".join(str(c or "") for r in rows for c in r)
     mm, dd = 12, 31
-    m = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", text)
-    if m:
-        mm, dd = int(m.group(2)), int(m.group(3))
-    half = bool(re.search(r"(6|六).{0,3}(個|个)月|中期|半年|H1|six\s*months", text, re.I))
+    # 年份、月日经常因 colspan 被拆到不同单元格，例如第一行“截至3月31日止
+    # 三个月”、第二行才是“2024/2025”。月日不能要求和年份出现在同一格。
+    month_day = _extract_month_day(text)
+    if month_day:
+        mm, dd = month_day
+
+    duration_months = 12
+    duration_patterns = (
+        (3, r"(?:3|三)\s*(?:個|个)月|首季|第一季|Q1|three\s+months"),
+        (6, r"(?:6|六)\s*(?:個|个)月|中期|半年|H1|six\s+months"),
+        (9, r"(?:9|九)\s*(?:個|个)月|首九個月|首九个月|nine\s+months"),
+    )
+    for months, pattern in duration_patterns:
+        if re.search(pattern, text, re.I):
+            duration_months = months
+            break
 
     padded = []
     for r in rows[:5]:
@@ -1757,6 +2266,10 @@ def _find_periods(table):
         hdr = " ".join(str(r[c] or "") for r in padded if c < len(r))
         col_years = _extract_years_from_text(hdr)
         if not col_years:
+            # 附注编号列不是期间金额列；把全表首年兜底到这里会令成本“4”
+            # 覆盖真正的销售成本金额。
+            if re.search(r"附[註注]|Notes?|Ref(?:erence)?", hdr, re.I):
+                continue
             # 只兜底有显式年份标签的列；无年份列不映射（避免USD列等重复）
             if all_years:
                 col_years = [all_years[0]]  # 只取第一个年份，不重复全表年份
@@ -1764,9 +2277,9 @@ def _find_periods(table):
                 col_years = []
         # 从该列 header 提取月日
         col_mm, col_dd = mm, dd
-        col_m = re.search(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日", hdr)
-        if col_m:
-            col_mm, col_dd = int(col_m.group(1)), int(col_m.group(2))
+        col_month_day = _extract_month_day(hdr)
+        if col_month_day:
+            col_mm, col_dd = col_month_day
         for y in col_years:
             if (c, y) in seen:
                 continue
@@ -1779,23 +2292,13 @@ def _find_periods(table):
                     ed = datetime.date(yi, col_mm, ed_day)
                 except ValueError:
                     ed = datetime.date(yi, col_mm, 28)
-                if half:
-                    start_month = col_mm - 5
-                    start_year = yi
-                    if start_month <= 0:
-                        start_month += 12
-                        start_year -= 1
-                    sd = datetime.date(start_year, start_month, 1)
-                else:
-                    start_month = col_mm + 1
-                    start_year = yi - 1
-                    if start_month > 12:
-                        start_month = 1
-                        start_year = yi
-                    sd = datetime.date(start_year, start_month, 1)
+                # 截至日所在月也属于期间，因此起始月向前回退 duration-1 个月。
+                month_index = yi * 12 + (col_mm - 1) - (duration_months - 1)
+                start_year, start_month0 = divmod(month_index, 12)
+                sd = datetime.date(start_year, start_month0 + 1, 1)
                 out.append((c, y, sd.strftime("%Y-%m-%d"), ed.strftime("%Y-%m-%d")))
             except Exception:
-                out.append((c, y, f"{int(y)-1}-12-31", f"{y}-12-31"))
+                out.append((c, y, f"{int(y)}-01-01", f"{y}-12-31"))
 
     # Period-per-column dedup: each col gets its most recent year
     col_best = {}
