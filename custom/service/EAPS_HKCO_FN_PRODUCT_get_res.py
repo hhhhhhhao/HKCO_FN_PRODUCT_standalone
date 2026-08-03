@@ -125,6 +125,18 @@ def _detect_document_currency(source_tables, target_page=None):
     return max(scores, key=scores.get) if scores else ""
 
 
+def _last_period_consensus(last_period_data, field):
+    """上期同一公告字段口径投票；仅作当前表未明示时的后备。"""
+    counts = {}
+    for item in last_period_data or []:
+        if not isinstance(item, dict):
+            continue
+        value = str(item.get(field, "") or "").strip()
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    return max(counts, key=counts.get) if counts else ""
+
+
 def _detect_unit(table, currency=""):
     """从表头检测金额单位。返回 unit code: 001=元, 002=千元, 004=百万元。
 
@@ -1441,11 +1453,30 @@ def _merge_metric_facts(rows, facts):
             row[field] = str(int(best["value"]) if float(best["value"]).is_integer()
                              else best["value"])
 
+
+def _complete_metric_equations(rows, last_period_data=None):
+    """在三个显式金额中已有两个时，用 Revenue - Cost = Gross Profit 补第三个。"""
+    allow_cost = any(_amount_value(item.get("MBCOST")) is not None
+                     for item in (last_period_data or []) if isinstance(item, dict))
+    allow_profit = any(_amount_value(item.get("GROSS_PROFIT")) is not None
+                       for item in (last_period_data or []) if isinstance(item, dict))
+    for row in rows or []:
+        revenue = _amount_value(row.get("mbrevenue"))
+        cost = _amount_value(row.get("mbcost"))
+        profit = _amount_value(row.get("gross_profit"))
+        if revenue is None:
+            continue
+        if allow_profit and profit is None and cost is not None:
+            value = revenue - abs(cost)
+            row["gross_profit"] = str(int(value) if float(value).is_integer() else value)
+        elif allow_cost and cost is None and profit is not None:
+            value = revenue - profit
+            if value >= 0:
+                row["mbcost"] = str(int(value) if float(value).is_integer() else value)
+
     # 产品级显式事实齐全时，合计由同期间产品求和；不使用集团值广播到产品。
     for total_row in [row for row in (rows or []) if row.get("product_name") == "合计"]:
         for field in ("mbcost", "gross_profit"):
-            if total_row.get(field):
-                continue
             products = [row for row in (rows or [])
                         if row.get("product_name") != "合计"
                         and row.get("start_date") == total_row.get("start_date")
@@ -1453,6 +1484,24 @@ def _merge_metric_facts(rows, facts):
             if products and all(_to_num(row.get(field)) is not None for row in products):
                 value = sum(_to_num(row.get(field)) for row in products)
                 total_row[field] = str(int(value) if float(value).is_integer() else value)
+
+
+def _apply_metric_disclosure_policy(rows, facts, last_period_data=None):
+    """孤立总额不能冒充产品级成本/毛利；上期仅作字段披露形态参考。"""
+    lp_allowed = {
+        "mbcost": any(_amount_value(item.get("MBCOST")) is not None
+                      for item in (last_period_data or []) if isinstance(item, dict)),
+        "gross_profit": any(_amount_value(item.get("GROSS_PROFIT")) is not None
+                            for item in (last_period_data or []) if isinstance(item, dict)),
+    }
+    for field in ("mbcost", "gross_profit"):
+        has_product_fact = any(
+            fact.get("field") == field and fact.get("granularity") == "product"
+            for fact in facts or []
+        )
+        if not lp_allowed[field] and not has_product_fact:
+            for row in rows or []:
+                row[field] = ""
 
 
 def _infer_document_fiscal_month_day(document_period_text):
@@ -1504,6 +1553,239 @@ def _apply_document_fiscal_context(rows, target_table, document_period_text):
         row["end_date"] = new_end.isoformat()
 
 
+def _extract_revenue_rows(table, typ, last_period_data=None):
+    """把表类型路由到统一的收入事实行，供主表和候选表共同使用。"""
+    if typ in ("收入_行产品", "分部_行产品"):
+        return extract_type1(table, last_period_data)
+    if typ in ("收入_行产品_父子明细", "结构_行产品_父子层级_分部"):
+        return extract_type1_parent_child(table, last_period_data)
+    if typ.startswith("结构_列产品_"):
+        basis = {
+            "报告分部收入": "report", "集团收入": "group", "营业收入": "operating",
+            "分部收入": "segment", "外部收入": "external",
+        }.get(typ.rsplit("_", 1)[-1], "external")
+        if "_标准占位_" in typ and "_收入确认分拆_" in typ:
+            return extract_type2_total_row_matrix(table, last_period_data)
+        return extract_type2_first_cell_product(table, last_period_data, revenue_basis=basis)
+    if typ in ("收入_列产品", "分部_列产品"):
+        return extract_type2(table, last_period_data)
+    if typ.startswith("分部_列产品_") and "首格即产品" not in typ:
+        basis = {
+            "报告分部收入": "report", "集团收入": "group", "营业收入": "operating",
+            "分部收入": "segment", "外部收入": "external",
+        }.get(typ.rsplit("_", 1)[-1], "external")
+        return extract_type2(table, last_period_data, revenue_basis=basis)
+    if typ.startswith("分部_列产品_首格即产品_"):
+        basis = {
+            "报告分部收入": "report", "集团收入": "group", "营业收入": "operating",
+            "分部收入": "segment", "外部收入": "external",
+        }.get(typ.rsplit("_", 1)[-1], "external")
+        return extract_type2_first_cell_product(table, last_period_data, revenue_basis=basis)
+    if typ == "损益":
+        return extract_type3(table, last_period_data)
+    if typ == "损益_单产品":
+        return extract_type4(table, last_period_data)
+    if typ == "损益_单产品_附注列":
+        return extract_type4_note_column(table, last_period_data)
+    if typ == "百度":
+        return extract_type5(table, last_period_data)
+    return []
+
+
+def _resolve_revenue_rows_from_sources(rows, source_tables, last_period_data=None):
+    """用全公告候选表中的强证据补充/纠正收入骨架。
+
+    只有产品身份、报告年度和 LP 金额三者同时命中才接纳，避免多表直接并集
+    导致地区、客户类型、内部收入等不同口径一起输出。
+    """
+    lp_facts = []
+    for item in last_period_data or []:
+        if not isinstance(item, dict):
+            continue
+        name = fullwidth_to_halfwidth(str(item.get("PRODUCTNAME", "") or "").strip())
+        value = _amount_value(item.get("MBREVENUE"))
+        date_text = str(item.get("REPORTDATE", "") or "")
+        year_match = re.search(r"20\d{2}", date_text)
+        if name and value is not None and year_match:
+            lp_facts.append((name, year_match.group(0), value))
+    if not lp_facts or not source_tables:
+        return rows
+
+    lp_names = [name for name, _year, _value in lp_facts]
+
+    def canonical_name(raw):
+        name = fullwidth_to_halfwidth(str(raw or "").strip())
+        if name in lp_names:
+            return name
+        suffix = [lp for lp in lp_names if len(lp) >= 2 and name.endswith(lp)]
+        if suffix:
+            longest = max(map(len, suffix))
+            best = [lp for lp in suffix if len(lp) == longest]
+            if len(best) == 1:
+                return best[0]
+        # 公告常把上期简称扩写为“产品名、服务场景及业务”等完整披露名称。
+        # 唯一包含关系只用于识别同一产品，输出仍保留公告原文。
+        contained = [lp for lp in lp_names if len(lp) >= 3 and (lp in name or name in lp)]
+        if contained:
+            longest = max(map(len, contained))
+            best = [lp for lp in contained if len(lp) == longest]
+            if len(best) == 1:
+                return best[0]
+        return ""
+
+    strong = {}
+    for source in source_tables:
+        table = source.get("target_table") if isinstance(source, dict) else source
+        if not isinstance(table, list) or not table:
+            continue
+        title = source.get("title", "") if isinstance(source, dict) else ""
+        page_lines = source.get("page_lines") if isinstance(source, dict) else None
+        typ = classify_table(table, title, last_period_data, page_lines)
+        if not typ:
+            continue
+        extract_table = _trim_cost_section(table) if "_含成本段" in typ else table
+        clean_typ = typ.replace("_含成本段", "")
+        try:
+            candidates = _extract_revenue_rows(extract_table, clean_typ, last_period_data)
+        except Exception:
+            continue
+        title_score = 2 if re.search(r"收入|收益|分部|產品|产品|Revenue|Segment", str(title), re.I) else 0
+        for candidate in candidates:
+            product = canonical_name(candidate.get("product_name"))
+            if not product:
+                continue
+            candidate_year = str(candidate.get("end_date") or candidate.get("year") or "")[:4]
+            amount = _amount_value(candidate.get("mbrevenue"))
+            if amount is None:
+                continue
+            for lp_name, lp_year, lp_value in lp_facts:
+                if product != lp_name or candidate_year != lp_year:
+                    continue
+                if abs(amount - lp_value) > max(1e-6, abs(lp_value) * 1e-8):
+                    continue
+                key = (lp_name, lp_year)
+                score = title_score + (2 if candidate.get("start_date") and candidate.get("end_date") else 0)
+                if key not in strong or score > strong[key][0]:
+                    # LP 只用于确认身份，不改写公告原始产品名。
+                    strong[key] = (score, dict(candidate))
+
+    # 完整叶子集合可共同证明合计；合计不再依赖另一张错误口径表的显式总额。
+    for total_name, year, total_value in lp_facts:
+        if total_name not in ("合计", "合計"):
+            continue
+        leaf_facts = [(name, lp_value) for name, lp_year, lp_value in lp_facts
+                      if lp_year == year and name not in ("合计", "合計")]
+        if not leaf_facts or not all((name, year) in strong for name, _ in leaf_facts):
+            continue
+        leaf_sum = sum(value for _name, value in leaf_facts)
+        if abs(leaf_sum - total_value) > max(1e-6, abs(total_value) * 1e-8):
+            continue
+        template = dict(strong[(leaf_facts[0][0], year)][1])
+        template["product_name"] = total_name
+        template["mbrevenue"] = str(int(total_value) if float(total_value).is_integer() else total_value)
+        strong[(total_name, year)] = (5, template)
+
+    result = list(rows or [])
+    positions = {}
+    for index, row in enumerate(result):
+        name = canonical_name(row.get("product_name")) or str(row.get("product_name", ""))
+        year = str(row.get("end_date") or row.get("year") or "")[:4]
+        positions[(name, year)] = index
+    for key, (_score, candidate) in strong.items():
+        if key in positions:
+            current = result[positions[key]]
+            current_amount = _amount_value(current.get("mbrevenue"))
+            candidate_amount = _amount_value(candidate.get("mbrevenue"))
+            if current_amount is None or abs(current_amount - candidate_amount) > 1e-8:
+                # 保留主表已注入的元数据，替换收入事实及其明确期间。
+                current.update(candidate)
+        else:
+            positions[key] = len(result)
+            result.append(candidate)
+
+    # 某年度 LP 产品集合已被强事实完整覆盖时，将其视为闭合集合；同年度不在
+    # 集合内的行来自其他分析维度或中间层，整体剔除，避免逐项噪声黑名单。
+    expected_by_year = {}
+    for name, year, _value in lp_facts:
+        expected_by_year.setdefault(year, set()).add(name)
+    complete_years = {
+        year for year, names in expected_by_year.items()
+        if names and all((name, year) in strong for name in names)
+    }
+    if complete_years:
+        closed = []
+        seen = set()
+        closed_names = set().union(*(expected_by_year[year] for year in complete_years))
+        for row in result:
+            year = str(row.get("end_date") or row.get("year") or "")[:4]
+            canonical = canonical_name(row.get("product_name"))
+            if year:
+                if canonical not in closed_names:
+                    continue
+            key = (row.get("product_name"), row.get("start_date"), row.get("end_date"))
+            if key in seen:
+                continue
+            seen.add(key)
+            closed.append(row)
+        result = closed
+
+    # 主产品集合已经覆盖 LP 身份、但同一结果又混入成片损益行时，说明多表合并把
+    # “产品维度”和“费用性质维度”拼在了一起。这里按集合结构清洗，而不是逐标签
+    # 罗列公告特例：至少两个 LP 叶子产品均出现，额外维度不少于产品维度，且其中
+    # 存在明确 P&L 标签，才把结果收敛到公告中与产品身份一致的行及显式合计。
+    lp_leaf_names = {name for name, _year, _value in lp_facts
+                     if name not in ("合计", "合計")}
+    matched_leaf_names = {
+        canonical_name(row.get("product_name")) for row in result
+        if canonical_name(row.get("product_name")) in lp_leaf_names
+    }
+    non_product_rows = [
+        row for row in result
+        if not canonical_name(row.get("product_name"))
+        and _metric_product_key(row.get("product_name")) != "合计"
+    ]
+    cost_nature_re = re.compile(
+        r"税金|稅金|僱員|雇员|員工福利|员工福利|核數師|核数师|審計師|审计师|"
+        r"折舊|折旧|攤銷|摊销|燃料|水電|水电|租金|法律及專業|法律及专业|"
+        r"行政開支|行政开支|銷售開支|销售开支|財務費用|财务费用"
+    )
+    cost_nature_rows = [
+        row for row in non_product_rows
+        if cost_nature_re.search(str(row.get("product_name", "")).strip())
+    ]
+    contaminated = (
+        len(lp_leaf_names) >= 2
+        and len(matched_leaf_names) >= 2
+        and len(non_product_rows) >= len(matched_leaf_names)
+        and (len(cost_nature_rows) >= 2 or (
+            matched_leaf_names == lp_leaf_names
+            and any(_PL_ROW_LABEL_RE.search(str(row.get("product_name", "")).strip())
+                    for row in non_product_rows)
+        ))
+    )
+    if contaminated:
+        result = [
+            row for row in result
+            if row not in cost_nature_rows
+        ]
+        # 合计只能由同期间清洗后的产品叶子求和；不能继续沿用污染集合产生的总额。
+        for total_row in [row for row in result
+                          if _metric_product_key(row.get("product_name")) == "合计"]:
+            leaves = [
+                row for row in result
+                if _metric_product_key(row.get("product_name")) != "合计"
+                and row.get("start_date") == total_row.get("start_date")
+                and row.get("end_date") == total_row.get("end_date")
+            ]
+            values = [_amount_value(row.get("mbrevenue")) for row in leaves]
+            if len(values) >= 2 and all(value is not None for value in values):
+                value = sum(values)
+                total_row["mbrevenue"] = str(
+                    int(value) if float(value).is_integer() else value
+                )
+    return result
+
+
 def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=None,
             source_tables=None, document_period_text=""):
     res = {"target_res": [], "pipe_meta": {"selected_count": 0, "source_pages": []}}
@@ -1530,62 +1812,8 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
         target_table = _trim_cost_section(target_table)
         typ = typ.replace("_含成本段", "")
 
-    if typ in ("收入_行产品", "分部_行产品"):
-        rows = extract_type1(target_table, last_period_data)
-    elif typ in ("收入_行产品_父子明细", "结构_行产品_父子层级_分部"):
-        rows = extract_type1_parent_child(target_table, last_period_data)
-    elif typ.startswith("结构_列产品_"):
-        basis = {
-            "报告分部收入": "report",
-            "集团收入": "group",
-            "营业收入": "operating",
-            "分部收入": "segment",
-            "外部收入": "external",
-        }.get(typ.rsplit("_", 1)[-1], "external")
-        if "_标准占位_" in typ and "_收入确认分拆_" in typ:
-            rows = extract_type2_total_row_matrix(target_table, last_period_data)
-        else:
-            rows = extract_type2_first_cell_product(
-                target_table,
-                last_period_data,
-                revenue_basis=basis,
-            )
-    elif typ in ("收入_列产品", "分部_列产品"):
-        rows = extract_type2(target_table, last_period_data)
-    elif typ.startswith("分部_列产品_") and "首格即产品" not in typ:
-        basis = {
-            "报告分部收入": "report",
-            "集团收入": "group",
-            "营业收入": "operating",
-            "分部收入": "segment",
-            "外部收入": "external",
-        }.get(typ.rsplit("_", 1)[-1], "external")
-        rows = extract_type2(
-            target_table,
-            last_period_data,
-            revenue_basis=basis,
-        )
-    elif typ.startswith("分部_列产品_首格即产品_"):
-        basis = {
-            "报告分部收入": "report",
-            "集团收入": "group",
-            "营业收入": "operating",
-            "分部收入": "segment",
-            "外部收入": "external",
-        }.get(typ.rsplit("_", 1)[-1], "external")
-        rows = extract_type2_first_cell_product(
-            target_table,
-            last_period_data,
-            revenue_basis=basis,
-        )
-    elif typ == "损益":
-        rows = extract_type3(target_table, last_period_data)
-    elif typ == "损益_单产品":
-        rows = extract_type4(target_table, last_period_data)
-    elif typ == "损益_单产品_附注列":
-        rows = extract_type4_note_column(target_table, last_period_data)
-    elif typ == "百度":
-        rows = extract_type5(target_table, last_period_data)
+    rows = _extract_revenue_rows(target_table, typ, last_period_data)
+    rows = _resolve_revenue_rows_from_sources(rows, source_tables, last_period_data)
 
     if not rows:
         reason_arr.append("提取为空")
@@ -1593,6 +1821,8 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
 
     # 检测币种并注入每条记录
     currency = _detect_currency(target_table)
+    if not currency:
+        currency = _last_period_consensus(last_period_data, "CURRENCY")
     if not currency:
         currency = _detect_document_currency(source_tables, page_number)
     if currency:
@@ -1602,6 +1832,8 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
 
     # 检测单位（百万元/千元/元）并注入每条记录
     unit_code = _detect_explicit_unit(target_table)
+    if not unit_code:
+        unit_code = _last_period_consensus(last_period_data, "UNIT")
     if not unit_code:
         target_numbers = [
             abs(value) for row in target_table[:20] if isinstance(row, list)
@@ -1648,6 +1880,8 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
         res["pipe_meta"]["source_table_count"] = len(source_tables)
         res["pipe_meta"]["metric_fact_count"] = len(metric_facts)
         _merge_metric_facts(rows, metric_facts)
+        _complete_metric_equations(rows, last_period_data)
+        _apply_metric_disclosure_policy(rows, metric_facts, last_period_data)
 
     res["target_res"] = rows
     return res

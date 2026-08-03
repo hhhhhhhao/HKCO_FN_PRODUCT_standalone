@@ -3215,17 +3215,14 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     target_items = get_target_tables(lines)
                     source_tables = get_all_source_tables(lines)
                     document_period_text = get_document_period_text(lines)
-                    gt_page = _get_gt_target_page(info_code) if backtest else None
-                    # 补充 GT 页候选：跨页章节复制 + 直接解析 GT 页 JSON
-                    if backtest and gt_page is not None:
-                        target_items = _add_gt_page_candidates(
-                            target_items, gt_page, json_path_page_map
-                        )
+                    # GT 仅用于 run_backtest.py 的结果评分，禁止参与候选发现或选表。
+                    # 即使处于 backtest 模式，也必须走与生产完全相同的抽取路径。
+                    gt_page = None
                     # 保存所有候选表
                     for _i, _cand in enumerate(list(target_items or [])):
                         if isinstance(_cand, dict) and _cand.get("target_table"):
                             _dbg_dump_target_item(f"{info_code}_candidate_{_i}", _cand)
-                    # 目标表格选择：GT 页码优先 > 上期命中 > 候选近似 > 既有启发式
+                    # 目标表格选择：上期命中 > 候选近似 > 既有启发式
                     target_item = get_target_table(
                         target_items,
                         target_table_from_last_period_data=target_table_from_last_period_data,
