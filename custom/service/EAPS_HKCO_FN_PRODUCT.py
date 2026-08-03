@@ -2302,7 +2302,9 @@ def _pick_best(pool, names=None):
                     break
             seg_bonus = 1 if (has_seg_title and len(names) <= 3) else 0
             cost_bonus = 1 if has_cost else 0
-            return (hits, rev + seg_bonus + cost_bonus, amt, sig, -pg)
+            # 用 min(hits, amt) 作主键：LP名命中但无金额的叙事文本被降权
+            valid_hits = min(hits, amt) if amt > 0 else 0
+            return (valid_hits, hits, rev + seg_bonus + cost_bonus, amt, sig, -pg)
         rank = _title_rank(c.get("title", ""))
         sig = _col_signal(tbl)
         return (-rank, sig, -pg)
