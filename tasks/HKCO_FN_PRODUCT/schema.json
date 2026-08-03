@@ -18,7 +18,7 @@
     "REPORTDATE",
     "PRODUCTNAME"
   ],
-  "pdf_dir": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/pdf",
-  "cache_dir": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/parse_cache",
-  "mineru_json_base_dir": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/pdf_json"
+  "pdf_dir": "pdf",
+  "cache_dir": "parse_cache",
+  "mineru_json_base_dir": "pdf_json"
 }

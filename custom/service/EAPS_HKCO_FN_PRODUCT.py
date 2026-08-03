@@ -3349,7 +3349,11 @@ def get_all_paths(src_file_path, configs):
         bases = []
         if configs and configs.get("mineru_json_base_dir"):
             bases.append(str(configs.get("mineru_json_base_dir")))
-        bases.append(r"E:\vdb\data\eaps\pdf\json")
+        # Optional deployment fallback.  Avoid a hard-coded drive so the same
+        # code works on Windows and macOS.
+        env_base = os.environ.get("HKCO_MINERU_JSON_DIR", "").strip()
+        if env_base:
+            bases.append(env_base)
         for base in bases:
             json_dir = os.path.join(base, info_code)
             if not os.path.isdir(json_dir):
@@ -3406,8 +3410,9 @@ def process_pdf_file_batch(pdfs):
                 src_file_path += "##" + os.path.join(pdf, tmp_path)
         src_file_path = re.sub(r"^##", "", src_file_path)
 
-        hw_list = os.listdir(pdf+"\\hw")
-        hw_list = [os.path.join(pdf+"\\hw", hw) for hw in hw_list]
+        hw_dir = os.path.join(pdf, "hw")
+        hw_list = os.listdir(hw_dir)
+        hw_list = [os.path.join(hw_dir, hw) for hw in hw_list]
         sql = f"select COLUMNCODE from newsadmin.ANN_RELCOLUMN WHERE INFOCODE = '{info_code}'"
         result, data = select_sql_ein1(sql)
 

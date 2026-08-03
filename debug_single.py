@@ -1,7 +1,8 @@
 """调试单个 infocode 的 extract_init 流程"""
 import os, sys
+from pathlib import Path
 
-# EAPS_HKCO_FN_PRODUCT.py 模块级代码会访问 Windows 路径，先打补丁
+# 将缺失的本地调试目录转换为清晰的异常信息。
 _original_listdir = os.listdir
 def _safe_listdir(path):
     if os.path.exists(path):
@@ -15,7 +16,7 @@ import json
 from custom.service.EAPS_HKCO_FN_PRODUCT import extract_init
 
 INFO_CODE = "AN202502281643617359"
-PDF_PATH = f"/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/pdf/{INFO_CODE}.pdf"
+PDF_PATH = str(Path(__file__).resolve().parent / "pdf" / f"{INFO_CODE}.pdf")
 
 with open("all_selected.json") as f:
     all_sel = json.load(f)

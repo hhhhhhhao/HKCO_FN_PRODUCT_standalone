@@ -175,7 +175,8 @@ def classify_table(table, title, last_period_data, page_lines=None):
     4. 损益表（但标题已命中分部的不再归损益）
     5. 收入/收益表，结构兜底
     """
-    row = is_row_product(table, last_period_data)
+    profile = classify_table_structure(table, last_period_data)
+    row = profile["product_axis"] == "row"
     t = str(title or "").strip()
 
     # ── 排除明显的错表 ──
@@ -207,9 +208,25 @@ def classify_table(table, title, last_period_data, page_lines=None):
                   or re.search(r'分部[资料料信息報告报告业绩業績分析]', t))
     if is_segment:
         if row:
+            if profile["row_hierarchy"] == "parent_child":
+                return "结构_行产品_父子层级_分部"
             return "分部_行产品"
         else:
-            return "分部_列产品"
+            basis = _classify_segment_revenue_basis(table, last_period_data)
+            if profile["header_alignment"] == "missing_stub":
+                return _column_structure_type(profile, "分部矩阵", basis)
+            if (profile["business_role"] == "收入确认分拆"
+                    and profile["period_layout"] == "stacked_blocks"):
+                return _column_structure_type(profile, "收入确认分拆", basis)
+            typ = "分部_列产品"
+            basis_suffix = {
+                "report": "报告分部收入",
+                "group": "集团收入",
+                "operating": "营业收入",
+                "segment": "分部收入",
+                "external": "外部收入",
+            }[basis]
+            return typ + "_" + basis_suffix
 
     # ── 百度多期间块表 ──
     if page_lines:
@@ -233,20 +250,37 @@ def classify_table(table, title, last_period_data, page_lines=None):
                                if isinstance(r, dict)
                                and str(r.get("PRODUCTNAME", "")).strip() != "合计"]
             if len(lp_product_names) == 1:
+                if _has_note_reference_column(table):
+                    return "损益_单产品_附注列"
                 return "损益_单产品"
             return "损益"
 
     # ── 收入/收益表 ──
     if '收入' in t or '收益' in t:
         if row:
+            if _has_lp_parent_child_structure(table, last_period_data):
+                return "收入_行产品_父子明细"
             return "收入_行产品"
         else:
+            if (profile["header_alignment"] == "missing_stub"
+                    or (profile["business_role"] == "收入确认分拆"
+                        and profile["period_layout"] == "stacked_blocks")):
+                return _column_structure_type(profile, profile["business_role"], "external")
             return "收入_列产品"
 
     # ── 结构兜底 ──
     if row:
-        typ = "收入_行产品"
+        typ = (
+            "收入_行产品_父子明细"
+            if _has_lp_parent_child_structure(table, last_period_data)
+            else "收入_行产品"
+        )
     else:
+        if profile["header_alignment"] == "missing_stub":
+            typ = _column_structure_type(profile, profile["business_role"], "external")
+            if _has_cost_section(table):
+                typ += "_含成本段"
+            return typ
         typ = "收入_列产品"
 
     # 检测成本段：如果前面有产品行、后面有成本标记 → 标记含成本段
@@ -255,6 +289,224 @@ def classify_table(table, title, last_period_data, page_lines=None):
             typ = typ + "_含成本段"
 
     return typ
+
+
+def _has_note_reference_column(table):
+    """是否为「科目 + 附注编号 + 金额列」的单产品损益表。"""
+    if not isinstance(table, list):
+        return False
+    for row in table[:6]:
+        if not isinstance(row, list):
+            continue
+        if any(re.fullmatch(r"附[註注]|Notes?", str(c or "").strip(), re.I)
+               for c in row[:3]):
+            return True
+    for row in table:
+        if not isinstance(row, list) or len(row) < 3:
+            continue
+        label = fullwidth_to_halfwidth(str(row[0] or "").strip())
+        ref = fullwidth_to_halfwidth(str(row[1] or "").strip())
+        amount = fullwidth_to_halfwidth(str(row[2] or "").strip())
+        if (re.search(r"收入|收益|營業額|营业额|Revenue", label, re.I)
+                and re.fullmatch(r"\d{1,2}(?:\([a-z]\))?", ref, re.I)
+                and re.search(r"\d", amount)):
+            return True
+    return False
+
+
+def _clean_header_product(cell):
+    text = fullwidth_to_halfwidth(str(cell or "").strip())
+    text = re.sub(
+        r"人民幣千元|人民币千元|港幣千元|港币千元|千港元|千元|"
+        r"人民幣|人民币|港元|百萬元|百万元|美元|美金",
+        "", text,
+    )
+    return re.sub(r"\s+", "", text).strip()
+
+
+def _shifted_product_header_row(row, width, last_period_data=None):
+    """产品表头少了左侧度量标签格：header[0] 实际对应 data col1。"""
+    if not isinstance(row, list) or len(row) != width - 1 or len(row) < 2:
+        return False
+    cells = [_clean_header_product(c) for c in row]
+    if any(re.fullmatch(r"[()（）+\-\d,.\s]+", c) and re.search(r"\d", c)
+           for c in cells):
+        return False
+    lp_names = [
+        fullwidth_to_halfwidth(str(x.get("PRODUCTNAME", "") or "").strip())
+        for x in (last_period_data or []) if isinstance(x, dict)
+        and str(x.get("PRODUCTNAME", "") or "").strip() not in ("", "合计", "合計")
+    ]
+    lp_hits = sum(
+        1 for c in cells if c and any(n in c or c in n for n in lp_names)
+    )
+    product_like = sum(
+        1 for c in cells
+        if len(c) >= 2 and re.search(r"[一-鿿A-Za-z]", c)
+        and not re.search(r"^(20\d{2}|二零|截至|收入|收益|金額|金额|百分比|佔比|占比)$", c)
+    )
+    return lp_hits >= 1 or product_like >= 2
+
+
+def _column_header_starts_with_product(table, last_period_data=None):
+    if not isinstance(table, list) or not table:
+        return False
+    width = max((len(row) for row in table if isinstance(row, list)), default=0)
+    return any(
+        _shifted_product_header_row(row, width, last_period_data)
+        for row in table[:8]
+    )
+
+
+def classify_table_structure(table, last_period_data=None):
+    """只描述表格客观结构，不参考标题，也不绑定具体 extractor。"""
+    rows = [row for row in (table or []) if isinstance(row, list)]
+    text = " ".join(str(cell or "") for row in rows for cell in row)
+    axis = "row" if is_row_product(rows, last_period_data) else "column"
+
+    if axis == "column" and _column_header_starts_with_product(rows, last_period_data):
+        header_alignment = "missing_stub"
+    else:
+        header_alignment = "aligned"
+
+    year_block_rows = 0
+    for row in rows:
+        if not row:
+            continue
+        first = fullwidth_to_halfwidth(str(row[0] or "").strip())
+        rest_nonempty = sum(bool(str(cell or "").strip()) for cell in row[1:])
+        if (re.search(r"(?:20\d{2}|二零[一二三四五六七八九零〇○]{2}).{0,12}(?:年|月|日)", first)
+                and rest_nonempty <= 1):
+            year_block_rows += 1
+    period_layout = "stacked_blocks" if year_block_rows >= 2 else "shared_header"
+
+    if re.search(r"某一時點|某一时点|隨時間|随时间|確認時間|确认时间|準則第\s*15|准则第\s*15", text):
+        business_role = "收入确认分拆"
+    elif re.search(r"分部間|分部间|分類間|分类间|抵銷|抵销|對銷|对销", text):
+        business_role = "分部对账"
+    elif re.search(r"分部業績|分部业绩|分部資產|分部资产|可呈報分部|可报告分部", text):
+        business_role = "分部矩阵"
+    elif re.search(r"銷售成本|销售成本|毛利|經營溢利|经营利润", text):
+        business_role = "损益明细"
+    else:
+        business_role = "收入明细"
+
+    row_hierarchy = "parent_child" if _has_lp_parent_child_structure(rows, last_period_data) else "flat"
+    modifiers = []
+    if _has_note_reference_column(rows):
+        modifiers.append("note_column")
+    if re.search(r"%|百分比|佔比|占比", text):
+        modifiers.append("percentage_column")
+    if re.search(r"抵銷|抵销|對銷|对销", text):
+        modifiers.append("elimination")
+    if re.search(r"合計|合计|總計|总计|總額|总额|綜合|综合", text):
+        modifiers.append("explicit_total")
+
+    return {
+        "business_role": business_role,
+        "product_axis": axis,
+        "header_alignment": header_alignment,
+        "period_layout": period_layout,
+        "row_hierarchy": row_hierarchy,
+        "modifiers": tuple(modifiers),
+    }
+
+
+def _column_structure_type(profile, role, revenue_basis):
+    basis_name = {
+        "report": "报告分部收入",
+        "group": "集团收入",
+        "operating": "营业收入",
+        "segment": "分部收入",
+        "external": "外部收入",
+    }.get(revenue_basis, "外部收入")
+    period_name = "上下期间块" if profile["period_layout"] == "stacked_blocks" else "共享期间头"
+    alignment_name = "缺占位" if profile["header_alignment"] == "missing_stub" else "标准占位"
+    return f"结构_列产品_{alignment_name}_{period_name}_{role}_{basis_name}"
+
+
+def _amount_value(value):
+    text = fullwidth_to_halfwidth(str(value or "")).replace(",", "").strip()
+    negative = text.startswith("(") and text.endswith(")")
+    text = text.strip("()（）")
+    try:
+        number = float(text)
+    except (TypeError, ValueError):
+        return None
+    return -number if negative else number
+
+
+def _classify_segment_revenue_basis(table, last_period_data=None):
+    """用 LP 金额把分部表分类到明确的收入口径。"""
+    lp_amounts = [
+        _amount_value(x.get("MBREVENUE")) for x in (last_period_data or [])
+        if isinstance(x, dict) and str(x.get("PRODUCTNAME", "")).strip() not in ("合计", "合計")
+    ]
+    lp_amounts = [x for x in lp_amounts if x is not None]
+    if not lp_amounts:
+        return "external"
+
+    patterns = {
+        "external": re.compile(r"外部|外界|對外|对外|來自.*客户|来自.*客户"),
+        "report": re.compile(r"報告分部收入|报告分部收入|可報告分部收益|可报告分部收益"),
+        "group": re.compile(r"^(集團收入|集团收入|合併收入|合并收入)$"),
+        "operating": re.compile(r"^(營業收入|营业收入|經營收入|经营收入)$"),
+        "segment": re.compile(r"^分部收入$"),
+    }
+    rows_by_basis = {key: [] for key in patterns}
+    for row in table if isinstance(table, list) else []:
+        if not isinstance(row, list) or not row:
+            continue
+        label = fullwidth_to_halfwidth(str(row[0] or "").strip())
+        for basis, pattern in patterns.items():
+            if pattern.search(label):
+                rows_by_basis[basis].append(row)
+
+    def score(rows):
+        values = [_amount_value(c) for row in rows for c in row[1:]]
+        values = [x for x in values if x is not None]
+        return sum(
+            1 for expected in lp_amounts
+            if any(abs(actual - expected) <= max(1e-6, abs(expected) * 1e-6)
+                   for actual in values)
+        )
+
+    scores = {basis: score(rows) for basis, rows in rows_by_basis.items()}
+    best_score = max(scores.values(), default=0)
+    if best_score <= 0:
+        return "external"
+    # 同分时优先采用外部客户口径，其次采用抵销后的集团/营业收入。
+    priority = ("external", "group", "operating", "report", "segment")
+    return next(basis for basis in priority if scores[basis] == best_score)
+
+
+def _lp_parent_child_map(last_period_data=None):
+    """返回 {短子项名: 完整 LP 名}，仅保留唯一后缀。"""
+    grouped = {}
+    for item in last_period_data or []:
+        if not isinstance(item, dict):
+            continue
+        name = fullwidth_to_halfwidth(str(item.get("PRODUCTNAME", "") or "").strip())
+        if ":" not in name and "：" not in name:
+            continue
+        parts = re.split(r"[:：]", name, maxsplit=1)
+        if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+            continue
+        child = parts[1].strip()
+        grouped.setdefault(child, []).append(name)
+    return {child: names[0] for child, names in grouped.items() if len(set(names)) == 1}
+
+
+def _has_lp_parent_child_structure(table, last_period_data=None):
+    child_map = _lp_parent_child_map(last_period_data)
+    if len(child_map) < 2 or not isinstance(table, list):
+        return False
+    labels = [
+        fullwidth_to_halfwidth(str(row[0] or "").strip()).lstrip("-–— ")
+        for row in table if isinstance(row, list) and row
+    ]
+    hits = sum(1 for child in child_map if any(label == child for label in labels))
+    return hits >= 2
 
 
 # 成本段标记（绝不可能是产品名的P&L行）
@@ -918,12 +1170,58 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
 
     if typ in ("收入_行产品", "分部_行产品"):
         rows = extract_type1(target_table, last_period_data)
+    elif typ in ("收入_行产品_父子明细", "结构_行产品_父子层级_分部"):
+        rows = extract_type1_parent_child(target_table, last_period_data)
+    elif typ.startswith("结构_列产品_"):
+        basis = {
+            "报告分部收入": "report",
+            "集团收入": "group",
+            "营业收入": "operating",
+            "分部收入": "segment",
+            "外部收入": "external",
+        }.get(typ.rsplit("_", 1)[-1], "external")
+        if "_标准占位_" in typ and "_收入确认分拆_" in typ:
+            rows = extract_type2_total_row_matrix(target_table, last_period_data)
+        else:
+            rows = extract_type2_first_cell_product(
+                target_table,
+                last_period_data,
+                revenue_basis=basis,
+            )
     elif typ in ("收入_列产品", "分部_列产品"):
         rows = extract_type2(target_table, last_period_data)
+    elif typ.startswith("分部_列产品_") and "首格即产品" not in typ:
+        basis = {
+            "报告分部收入": "report",
+            "集团收入": "group",
+            "营业收入": "operating",
+            "分部收入": "segment",
+            "外部收入": "external",
+        }.get(typ.rsplit("_", 1)[-1], "external")
+        rows = extract_type2(
+            target_table,
+            last_period_data,
+            revenue_basis=basis,
+        )
+    elif typ.startswith("分部_列产品_首格即产品_"):
+        basis = {
+            "报告分部收入": "report",
+            "集团收入": "group",
+            "营业收入": "operating",
+            "分部收入": "segment",
+            "外部收入": "external",
+        }.get(typ.rsplit("_", 1)[-1], "external")
+        rows = extract_type2_first_cell_product(
+            target_table,
+            last_period_data,
+            revenue_basis=basis,
+        )
     elif typ == "损益":
         rows = extract_type3(target_table, last_period_data)
     elif typ == "损益_单产品":
         rows = extract_type4(target_table, last_period_data)
+    elif typ == "损益_单产品_附注列":
+        rows = extract_type4_note_column(target_table, last_period_data)
     elif typ == "百度":
         rows = extract_type5(target_table, last_period_data)
 
@@ -1143,7 +1441,9 @@ def extract_type1(table, last_period_data=None):
         if not name and any(re.search(r'\d', str(c or "")) for c in row[1:]):
             name = "合计"
         if re.match(r"^(合[计計]|總[计計]|总[计計]|小[计計]|總額|总额|"
-                     r"收入總額|收入总额|收益總額|收益总额|總收入|总收入|總收益|总收益)", name):
+                     r"收入總額|收入总额|收益總額|收益总额|"
+                     r"淨收入總額|净收入总额|淨收益總額|净收益总额|"
+                     r"總收入|总收入|總收益|总收益)", name):
             name = "合计"
         if not name:
             continue
@@ -1383,6 +1683,48 @@ def _extract_years_from_text(text):
     return years
 
 
+def extract_type1_parent_child(table, last_period_data=None):
+    """行产品专类：LP 使用「父项:子项」，表内父子行没有破折号。"""
+    rows = extract_type1(table, last_period_data)
+    child_map = _lp_parent_child_map(last_period_data)
+    lp_names = {
+        fullwidth_to_halfwidth(str(x.get("PRODUCTNAME", "") or "").strip())
+        for x in (last_period_data or []) if isinstance(x, dict)
+    }
+    parent_names = {
+        re.split(r"[:：]", name, maxsplit=1)[0].strip()
+        for name in lp_names if ":" in name or "：" in name
+    }
+    mapped = []
+    matched_children = set()
+    for item in rows:
+        name = fullwidth_to_halfwidth(str(item.get("product_name", "") or "").strip())
+        clean = name.lstrip("-–— ")
+        if clean in child_map:
+            item = dict(item)
+            item["product_name"] = child_map[clean]
+            matched_children.add(clean)
+            mapped.append(item)
+        elif name in lp_names or name == "合计":
+            mapped.append(item)
+        elif name in parent_names:
+            # LP 要的是父项下的叶子，父项金额只作层级/合计证据。
+            continue
+        else:
+            mapped.append(item)
+
+    # 至少两个叶子命中后，说明该专类成立；过滤同一区块里未标注的中间层。
+    if len(matched_children) >= 2:
+        allowed = lp_names | {"合计"}
+        mapped = [x for x in mapped if str(x.get("product_name", "")) in allowed]
+
+    deduped = {}
+    for item in mapped:
+        key = (item.get("product_name"), item.get("start_date"), item.get("end_date"))
+        deduped[key] = item
+    return list(deduped.values())
+
+
 def _find_periods(table):
     rows = [r for r in table if isinstance(r, list) and len(r) > 0]
     if not rows:
@@ -1466,7 +1808,7 @@ def _find_periods(table):
 
 
 # 收入_列产品 — 产品在列头，从表身找收入行提取
-def extract_type2(table, last_period_data=None):
+def extract_type2(table, last_period_data=None, revenue_basis=""):
     header, body = _split_header_body(table)
     nc = max((len(r) for r in table if isinstance(r, list)), default=0)
 
@@ -1574,6 +1916,27 @@ def extract_type2(table, last_period_data=None):
 
     # 2. 从表身找收入行：优先外部/對外收入行，再兜底通用收入行
     revenue_row = None
+    if revenue_basis:
+        basis_re = {
+            "report": re.compile(r"報告分部收入|报告分部收入|可報告分部收益|可报告分部收益"),
+            "group": re.compile(r"^(集團收入|集团收入|合併收入|合并收入)$"),
+            "operating": re.compile(r"^(營業收入|营业收入|經營收入|经营收入)$"),
+            "segment": re.compile(r"^分部收入$"),
+            "external": re.compile(r"外部|外界|對外|对外|來自.*客户|来自.*客户"),
+        }.get(revenue_basis, re.compile(r"外部|外界|對外|对外"))
+        basis_candidates = []
+        for r in body:
+            label = fullwidth_to_halfwidth(str(r[0] or "").strip())
+            if not basis_re.search(label):
+                continue
+            valid_cols = sum(
+                1 for c in r[1:]
+                if str(c or "").strip() not in ("", "-")
+            )
+            if valid_cols:
+                basis_candidates.append((valid_cols, r))
+        if basis_candidates:
+            revenue_row = max(basis_candidates, key=lambda x: x[0])[1]
     # Pass 1: 外部/對外客户收入行（最精确）
     _REV_EXT = re.compile(r'對外交易|对外交易|外部客户|外部客戶|來自外部|来自外部|外界客户|外界客戶')
     for r in body:
@@ -1783,6 +2146,111 @@ def extract_type2(table, last_period_data=None):
     return out
 
 
+def _map_product_name_to_lp(name, last_period_data=None):
+    """短表头名唯一命中 LP 后缀时，恢复完整产品名。"""
+    raw = fullwidth_to_halfwidth(str(name or "").strip())
+    if not raw or raw == "合计":
+        return raw
+    names = [
+        fullwidth_to_halfwidth(str(x.get("PRODUCTNAME", "") or "").strip())
+        for x in (last_period_data or []) if isinstance(x, dict)
+        and str(x.get("PRODUCTNAME", "") or "").strip() not in ("", "合计", "合計")
+    ]
+    exact = [n for n in names if n == raw]
+    if exact:
+        return exact[0]
+    suffix = [n for n in names if len(raw) >= 2 and n.endswith(raw)]
+    return suffix[0] if len(suffix) == 1 else raw
+
+
+def extract_type2_first_cell_product(table, last_period_data=None, revenue_basis="external"):
+    """列产品专类：产品表头首格就是产品，整体对应金额列 +1。"""
+    width = max((len(row) for row in table if isinstance(row, list)), default=0)
+    normalized = []
+    for row in table:
+        copied = list(row) if isinstance(row, list) else row
+        if (isinstance(copied, list)
+                and _shifted_product_header_row(copied, width, last_period_data)):
+            copied = [""] + copied
+            for index in range(1, len(copied)):
+                header_name = _clean_header_product(copied[index])
+                if re.search(r"分部小[計计]|小[計计]$|總[計计]$|总[計计]$|^(集團|集团|綜合|综合)$", header_name):
+                    copied[index] = "合计"
+        normalized.append(copied)
+    rows = extract_type2(normalized, last_period_data, revenue_basis=revenue_basis)
+    for item in rows:
+        name = str(item.get("product_name", "") or "").strip()
+        if re.search(r"分部小[計计]|小[計计]$|總[計计]$|总[計计]$|^(集團|集团|綜合|综合)$", name):
+            item["product_name"] = "合计"
+        else:
+            item["product_name"] = _map_product_name_to_lp(name, last_period_data)
+    # 表内「分部小计」和「总计」可能是同值同期间，只保留一条合计。
+    deduped = {}
+    for item in rows:
+        key = (item.get("product_name"), item.get("start_date"), item.get("end_date"))
+        old = deduped.get(key)
+        # 首格产品专类中，显式「综合/集团」列会先被通用逻辑当产品参与自动求和，
+        # 随后又映射成合计，形成“显式总额”和“包含总额再求和”的两条记录。
+        # 同期多个合计时，较小者是表内显式总额；普通产品仍保留绝对值较大者。
+        prefer = (
+            old is None
+            or (key[0] == "合计" and 0 < abs(_to_num(item.get("mbrevenue")) or 0)
+                < abs(_to_num(old.get("mbrevenue")) or 0))
+            or (key[0] != "合计" and abs(_to_num(item.get("mbrevenue")) or 0)
+                > abs(_to_num(old.get("mbrevenue")) or 0))
+        )
+        if prefer:
+            deduped[key] = item
+    return list(deduped.values())
+
+
+def extract_type2_total_row_matrix(table, last_period_data=None):
+    """列产品收入确认矩阵：每个期间块以显式总计行作为产品收入。"""
+    rows = [list(row) for row in (table or []) if isinstance(row, list)]
+    if not rows:
+        return []
+
+    # 当前期间是首个完整块；块内可能先列商品/服务类别，再列确认时点，
+    # 两个区段均以总计收束，取第一个显式总计即可避免重复累计。
+    total_index = None
+    for index, row in enumerate(rows):
+        label = fullwidth_to_halfwidth(str(row[0] or "").strip()) if row else ""
+        if (re.match(r"^(總計|总计|合計|合计|收入總額|收入总额|收益總額|收益总额)$", label)
+                and any(_amount_value(cell) is not None for cell in row[1:])):
+            total_index = index
+            break
+    if total_index is None:
+        return extract_type2(rows, last_period_data, revenue_basis="external")
+
+    selected = rows[:total_index + 1]
+    selected[-1][0] = "外部客户收入"
+    out = extract_type2(selected, last_period_data, revenue_basis="external")
+
+    # 表头可能用简称（CDMO），本期明细行给出完整产品名（CDMO服務）。
+    # 仅在“简称开头 + 对应产品列有金额”唯一成立时扩展名称。
+    header = next((row for row in selected[:6]
+                   if sum(bool(_clean_header_product(cell)) for cell in row[1:]) >= 2), None)
+    if header:
+        expansions = {}
+        for col in range(1, len(header)):
+            short = _clean_header_product(header[col])
+            if not short:
+                continue
+            candidates = []
+            for row in selected[1:-1]:
+                label = fullwidth_to_halfwidth(str(row[0] or "").strip()) if row else ""
+                if (len(label) > len(short) and label.startswith(short) and col < len(row)
+                        and _amount_value(row[col]) not in (None, 0)):
+                    candidates.append(label)
+            if len(set(candidates)) == 1:
+                expansions[short] = candidates[0]
+        for item in out:
+            name = str(item.get("product_name", "") or "").strip()
+            if name in expansions:
+                item["product_name"] = expansions[name]
+    return out
+
+
 # 损益表 — 检测嵌入式产品并提取
 # 损益_单产品 — LP 只有一个产品，取第一个收益行，切在銷售成本
 # 百度 — 多期间块列产品表
@@ -1903,7 +2371,36 @@ def extract_type4(table, last_period_data=None):
     if revenue_row is None:
         return []
 
-    return _format_type3_output(revenue_row, periods, product_name)
+    rows = [item for item in _format_type3_output(revenue_row, periods, product_name)
+            if _to_num(item.get("mbrevenue")) is not None]
+    if rows and any(str(x.get("PRODUCTNAME", "")).strip() in ("合计", "合計")
+                    for x in (last_period_data or []) if isinstance(x, dict)):
+        rows.extend({**item, "product_name": "合计"} for item in list(rows))
+    return rows
+
+
+def extract_type4_note_column(table, last_period_data=None):
+    """单产品损益专类：科目后第一列为附注编号。"""
+    _hdr, body = _split_header_body(table)
+    periods = [p for p in _find_periods(table) if p[0] >= 2]
+    lp_names = [fullwidth_to_halfwidth(str(r.get("PRODUCTNAME", "").strip()))
+                for r in (last_period_data or [])
+                if isinstance(r, dict) and str(r.get("PRODUCTNAME", "")).strip() != "合计"]
+    product_name = lp_names[0] if lp_names else "本集團"
+    rev_re = re.compile(r"^(收益|收入|營業額|营业额|營業收入|营业收入|Revenue)", re.I)
+    revenue_row = next(
+        (row for row in body if isinstance(row, list) and len(row) >= 3
+         and rev_re.search(fullwidth_to_halfwidth(str(row[0] or "").strip()))
+         and any(re.search(r"\d", str(c or "")) for c in row[2:])),
+        None,
+    )
+    if revenue_row is None:
+        return []
+    rows = _format_type3_output(revenue_row, periods, product_name)
+    if rows and any(str(x.get("PRODUCTNAME", "")).strip() in ("合计", "合計")
+                    for x in (last_period_data or []) if isinstance(x, dict)):
+        rows.extend({**item, "product_name": "合计"} for item in list(rows))
+    return rows
 
 
 def extract_type3(table, last_period_data=None):

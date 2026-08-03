@@ -22,6 +22,7 @@ import html
 import importlib
 import importlib.util
 import json
+import multiprocessing
 import os
 import tempfile
 import traceback
@@ -101,6 +102,15 @@ def load_schema(task_dir: Path) -> Dict[str, Any]:
         raise ValueError(f"schema.json 缺少 fields: {path}")
     if not str(schema.get("pdf_dir") or "").strip():
         raise ValueError(f"schema.json 缺少 pdf_dir: {path}")
+    # Paths in schema.json are resolved relative to the project root.  This
+    # keeps the same configuration usable on macOS and Windows.
+    for key in ("pdf_dir", "cache_dir", "mineru_json_base_dir"):
+        value = str(schema.get(key) or "").strip()
+        if value:
+            candidate = Path(os.path.expandvars(os.path.expanduser(value)))
+            if not candidate.is_absolute():
+                candidate = ROOT / candidate
+            schema[key] = str(candidate.resolve())
     return schema
 
 
@@ -1568,12 +1578,23 @@ def run_backtest(
     task: str,
     infocode: str = "",
     workers: int = DEFAULT_WORKERS,
+    pdf_dir: str = "",
+    mineru_json_base_dir: str = "",
+    cache_dir: str = "",
 ) -> Dict[str, Any]:
     task_dir = TASKS_DIR / task
     if not task_dir.is_dir():
         raise FileNotFoundError(task_dir)
 
     schema = load_schema(task_dir)
+    # Command-line paths take precedence over schema defaults.
+    for key, value in (
+        ("pdf_dir", pdf_dir),
+        ("mineru_json_base_dir", mineru_json_base_dir),
+        ("cache_dir", cache_dir),
+    ):
+        if value:
+            schema[key] = str(Path(value).expanduser().resolve())
 
     global _COMPARE_PRODUCT_VALIDATOR
     _COMPARE_PRODUCT_VALIDATOR = _build_product_validator(task_dir, schema)
@@ -1785,6 +1806,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="PDF baseline 回测：默认跑 ground_truth.json 全部公告")
     parser.add_argument("--task", required=True, help="任务名，如 HKCO_FN_PRODUCT")
     parser.add_argument("--infocode", default="", help="只跑 / 只采纳某一个公告")
+    parser.add_argument("--pdf-dir", default="", help="PDF 目录（覆盖 schema.json）")
+    parser.add_argument(
+        "--mineru-dir",
+        default="",
+        help="MinerU JSON 根目录（覆盖 schema.json）",
+    )
+    parser.add_argument("--cache-dir", default="", help="缓存目录（覆盖 schema.json）")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help=f"并行进程数（默认 {DEFAULT_WORKERS}）",
+    )
     parser.add_argument(
         "--accept-gt",
         action="store_true",
@@ -1819,6 +1853,10 @@ def main() -> int:
     result = run_backtest(
         args.task,
         infocode=args.infocode,
+        workers=max(1, args.workers),
+        pdf_dir=args.pdf_dir,
+        mineru_json_base_dir=args.mineru_dir,
+        cache_dir=args.cache_dir,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     print(f"\nReport: {result['report_html']}")
@@ -1826,4 +1864,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     raise SystemExit(main())
