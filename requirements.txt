@@ -1,0 +1,4 @@
+# HKCO_FN_PRODUCT Standalone Backtest
+# Requirements for running the extraction and backtest pipeline
+pdfplumber>=0.10.0
+loguru>=0.7.0

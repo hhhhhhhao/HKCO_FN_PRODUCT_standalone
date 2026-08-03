@@ -1,0 +1,4 @@
+__pycache__
+batch_runs/*
+pdf_json
+.claude

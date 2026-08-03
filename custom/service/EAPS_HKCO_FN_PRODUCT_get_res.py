@@ -57,13 +57,123 @@ def replace_chinese_numerals(text):
     return pattern.sub(replace_match, text)
 
 
+# ── currency detection ──
+_CURRENCY_DETECT_RE = re.compile(
+    r'(人民幣|人民币)|'
+    r'(港[幣币元])|(港元)|'
+    r'(美[金元])|'
+    r'(新加坡[元幣币])|'
+    r'(令吉)|(馬幣|马币|馬來西亞|马来西亚)|'
+    r'(加拿大[元幣币])|'
+    r'(歐元|欧元|EURO?)|'
+    r'(日[圓元])|'
+    r'(澳門[元幣币]|澳门[元幣币])|'
+    r'(英鎊|英镑)'
+)
+
+_CURRENCY_MAP = {
+    "人民幣": "人民币", "人民币": "人民币",
+    "港元": "港元", "港幣": "港元", "港币": "港元",
+    "美元": "美元", "美金": "美元",
+    "新加坡元": "新加坡元",
+    "令吉": "马来西亚林吉特", "馬幣": "马来西亚林吉特", "马币": "马来西亚林吉特",
+    "马来西亚": "马来西亚林吉特", "馬來西亞": "马来西亚林吉特",
+    "加拿大元": "加拿大元",
+    "歐元": "欧元", "欧元": "欧元", "EUR": "欧元", "EURO": "欧元",
+    "日圓": "日元", "日元": "日元",
+    "澳門元": "澳门元", "澳门元": "澳门元",
+    "英鎊": "英镑", "英镑": "英镑",
+}
+
+
+def _detect_currency(table):
+    """从表中检测币种。扫描所有单元格中的币种关键词，返回最常见的币种。"""
+    if not isinstance(table, list):
+        return ""
+    flat = " ".join(
+        str(c or "")
+        for r in table[:6]
+        for c in (r if isinstance(r, list) else [])
+    )
+    matches = {}
+    for m in _CURRENCY_DETECT_RE.finditer(flat):
+        matched_text = m.group(0)
+        currency = _CURRENCY_MAP.get(matched_text, "")
+        if currency:
+            matches[currency] = matches.get(currency, 0) + 1
+    if matches:
+        return max(matches, key=matches.get)
+    return ""
+
+
+def _detect_unit(table, currency=""):
+    """从表头检测金额单位。返回 unit code: 001=元, 002=千元, 004=百万元。
+
+    优先从 header 行检测，再扫描正文。
+    """
+    if not isinstance(table, list) or len(table) < 1:
+        return ""
+    # 先扫描前6行（header区域）
+    header_text = " ".join(
+        str(c or "")
+        for r in table[:min(6, len(table))]
+        for c in (r if isinstance(r, list) else [])
+    )
+    # 百万元标记（包括"百萬港元"、"百万元"、"以百萬元計"等）
+    if re.search(r'百萬', header_text):
+        return "004"
+    # 千元标记：千港元、千元、人民幣千元、港幣千元（但不含"百萬"）
+    if re.search(r'(?<!百)千元|(?<!百萬)千港元|千美元|千令吉|千新加坡元|'
+                 r'人民幣千元|人民币千元|港幣千元|港币千元', header_text):
+        return "002"
+    # 元（无千/百万前缀）—— 只在表头明确出现"单位：元"或"以元計"时
+    if re.search(r'(?:單位|单位|以)\s*[：:]\s*元\b|以元[計计]|\(元\)|（元）', header_text):
+        return "001"
+    # 扫描全表（兜底）
+    full_text = " ".join(
+        str(c or "")
+        for r in table[:20]
+        for c in (r if isinstance(r, list) else [])
+    )
+    if re.search(r'百萬', full_text):
+        return "004"
+    if re.search(r'(?<!百)千元|(?<!百萬)千港元|人民幣千元|人民币千元|'
+                 r'港幣千元|港币千元', full_text):
+        return "002"
+    # 根据币种推测：人民币通常用千元，港元也可用千元
+    if currency and '人民币' in str(currency):
+        return "002"  # 人民币财务报表通常以千元为单位
+    # 检查数值量级：若最大金额 >10^8 且无千/百万标记，大概率是原始元
+    _has_large_raw_numbers = False
+    for r in table[:min(20, len(table))]:
+        if not isinstance(r, list):
+            continue
+        for c in r[1:]:
+            try:
+                v = str(c or "").replace(",", "").replace("(", "").replace(")", "")
+                if v and re.search(r'\d', v):
+                    fv = float(v)
+                    if fv > 1e8:
+                        _has_large_raw_numbers = True
+                        break
+            except (ValueError, TypeError):
+                pass
+        if _has_large_raw_numbers:
+            break
+    if _has_large_raw_numbers:
+        return "001"  # 数值过大不可能是千元
+    return ""
+
+
 def classify_table(table, title, last_period_data, page_lines=None):
     """返回表类型字符串
 
     分类层次：
     1. 先排错表（免责声明、公司名、MD&A等）
-    2. 损益表（防止"综合收益表"被收入/收益误截）
-    3. 分部表，收入/收益表，结构兜底
+    2. 分部表（优先于损益，分部标题常同时含P&L关键词）
+    3. 百度多期间块表
+    4. 损益表（但标题已命中分部的不再归损益）
+    5. 收入/收益表，结构兜底
     """
     row = is_row_product(table, last_period_data)
     t = str(title or "").strip()
@@ -72,9 +182,40 @@ def classify_table(table, title, last_period_data, page_lines=None):
     # 附注/脚注（不是表格标题）
     if re.match(r'^(附註|附注|Note\s*\d)', t):
         return ""
-    # 标题过短且无产品/分部关键词（不是有效表格标题）
+    # 标题过短且无产品/分部关键词 → 检查表内是否有LP产品匹配
     if len(t) <= 2 and not re.search(r'產品|产品|分部|收入|收益|服務|服务|業務|业务', t):
-        return ""
+        # 若表内有LP产品名匹配或有≥2个产品行，不拒绝
+        lp_names = [fullwidth_to_halfwidth(str(r.get("PRODUCTNAME", "")).strip())
+                    for r in (last_period_data or []) if isinstance(r, dict) and r.get("PRODUCTNAME", "").strip() != "合计"]
+        has_lp_in_table = False
+        if lp_names:
+            for r in table:
+                if not isinstance(r, list) or not r:
+                    continue
+                c0 = fullwidth_to_halfwidth(str(r[0] or "").strip())
+                if any(n in c0 or c0 in n for n in lp_names):
+                    if any(re.search(r'\d', str(r[c] or "")) for c in range(1, min(3, len(r)))):
+                        has_lp_in_table = True
+                        break
+        if not has_lp_in_table:
+            return ""
+
+    # ── 分部表（优先于损益：分部标题常同时含P&L关键词如"綜合收益表"）──
+    is_segment = ('分部' in t or '經營分部' in t or '经营分部' in t
+                  or '可呈報分部' in t or '可报告分部' in t
+                  or '可呈报分部' in t or '可報告分部' in t
+                  or re.search(r'分部[资料料信息報告报告业绩業績分析]', t))
+    if is_segment:
+        if row:
+            return "分部_行产品"
+        else:
+            return "分部_列产品"
+
+    # ── 百度多期间块表 ──
+    if page_lines:
+        pl_text = " ".join(str(l.get("content", "")) for l in page_lines if isinstance(l, dict))
+        if "百度集團股份有限公司" in pl_text:
+            return "百度"
 
     # ── 损益表 ──
     if ('損益' in t or '损益' in t or '利潤表' in t or '利润表' in t
@@ -94,22 +235,6 @@ def classify_table(table, title, last_period_data, page_lines=None):
             if len(lp_product_names) == 1:
                 return "损益_单产品"
             return "损益"
-
-    # ── 百度多期间块表 ──
-    if page_lines:
-        pl_text = " ".join(str(l.get("content", "")) for l in page_lines if isinstance(l, dict))
-        if "百度集團股份有限公司" in pl_text:
-            return "百度"
-
-    # ── 分部表 ──
-    if ('分部' in t or '經營分部' in t or '经营分部' in t
-            or '可呈報分部' in t or '可报告分部' in t
-            or '可呈报分部' in t or '可報告分部' in t
-            or re.search(r'分部[资料料信息報告报告业绩業績分析]', t)):
-        if row:
-            return "分部_行产品"
-        else:
-            return "分部_列产品"
 
     # ── 收入/收益表 ──
     if '收入' in t or '收益' in t:
@@ -135,12 +260,16 @@ def classify_table(table, title, last_period_data, page_lines=None):
 # 成本段标记（绝不可能是产品名的P&L行）
 _COST_SECTION_RE = re.compile(
     r'^(銷售成本|销售成本|服務成本|服务成本|營業成本|营业成本)'
-    r'[：:總总]|'
-    r'^(毛利$|營業費用|营业费用|營業費用總額|营业费用总额|'
+    r'([：:總总]|$)|'
+    r'^(毛利$|毛利:|營業費用|营业费用|營業費用總額|营业费用总额|'
     r'經營開支|经营开支|經營開支總額|经营开支总额|'
     r'經營虧損|经营亏损|經營利潤|经营利润|'
     r'所得稅開支|所得税开支|所得稅費用|所得税费用|'
-    r'行政開支|行政开支|銷售及分銷|销售及分销)$')
+    r'行政開支|行政开支|銷售及分銷|销售及分销|'
+    r'銷售及營銷|销售及营销|融資成本|融资成本|'
+    r'銷售成本總額|销售成本总额|營業費用總額|营业费用总额|'
+    r'運營成本及開支|运营成本及开支|'
+    r'一般及行政|研發|銷售費用|销售费用|管理費用|管理费用)$')
 
 
 def _has_cost_section(table):
@@ -148,6 +277,10 @@ def _has_cost_section(table):
     if not isinstance(table, list) or len(table) < 3:
         return False
     has_product = False
+    # 宽松成本关键词（行标签中包含则很可能不是产品名）
+    _LOOSE_COST = re.compile(r'成本|費用|费用|開支|开支|虧損|亏损|研發|研发|'
+                            r'所得稅|所得税|折舊|折旧|攤銷|摊销|利息|減值|减值|'
+                            r'薪金|津貼|酬金|撥備|拨备')
     for row in table:
         if not isinstance(row, list) or len(row) < 1:
             continue
@@ -156,6 +289,11 @@ def _has_cost_section(table):
             if has_product:
                 return True
             return False
+        # 宽松检测：产品行后出现成本关键词 → 可能含成本段
+        if has_product and _LOOSE_COST.search(c0) and not re.search(
+                r'產品|产品|服務|服务|銷售|销售', c0):
+            if any(re.search(r'\d', str(c or '')) for c in row[1:]):
+                return True
         if re.search(r'[一-鿿]', c0) and any(re.search(r'\d', str(c or '')) for c in row[1:]):
             has_product = True
     return False
@@ -191,7 +329,26 @@ _PL_ROW_LABEL_RE = re.compile(
     r"可呈報分部收益|可报告分部收益|可呈报分部收益|"
     r"對外部客户銷售|對外部客戶銷售|对外部客户销售|"
     r"外部客户收益|外部客戶收益|外部客户收入|外部客戶收入|"
-    r"客戶合約收入|客户合约收入)$"
+    r"客戶合約收入|客户合约收入|"
+    # IFRS15 时间标签
+    r"於某一時間點|于某一时间点|於某個時間點|于某个时间点|"
+    r"某一時間點|某一时间点|隨時間|随时间|"
+    r"於一段時間內|于一段时间内|一段時間內|一段时间内|"
+    r"在某時間點|在某时间点|時間點|时间点|"
+    r"隨時間確認|随时间确认|隨時間推移|随时间推移|"
+    # 地区行
+    r"中國內地|中国内地|中國大陸|中国大陆|"
+    r"香港|澳門|澳门|台灣|台湾|海外|"
+    r"其他地區|其他地区|其他市場|其他市场|"
+    r"馬來西亞|马来西亚|新加坡|美國|美国|日本|"
+    # 小计/净额/总计
+    r"收益總額|收益总额|收益淨額|收益净额|"
+    r"收入總額|收入总额|收入淨額|收入净额|"
+    r"合約總收入|合约总收入|合約總收益|合约总收益|"
+    # 其他非产品
+    r"提供服務|提供服务|銷售貨物|销售货物|"
+    r"服務收入$|服务收入$|產品收入$|产品收入$|"
+    r"服務收益$|服务收益$|產品收益$|产品收益$)$"
 )
 
 
@@ -239,7 +396,21 @@ def _is_noise_label(name):
             r"經調整|经调整|調整後|调整后|"
             r"除稅前|除税前|持續經營|持续经营|"
             r"期內溢利|期内溢利|期內虧損|期内亏损|"
-            r"年內溢利|年内溢利|每股盈利|每股虧損|每股亏损)$")
+            r"年內溢利|年内溢利|每股盈利|每股虧損|每股亏损|"
+            r"分部開支|分部开支|分部費用|分部费用|"
+            r"分部資產|分部资产|分部負債|分部负债|"
+            r"分部間銷售|分部间销售|分部間抵銷|分部间抵销|"
+            r"未分配開支|未分配开支|未分配收入|未分配收益|"
+            r"中央行政|企業開支|企业开支|"
+            r"其他分部|其他分类|其他分類|"
+            # IFRS15 收入确认时间标签
+            r"於某一時間點|于某一时间点|於某個時間點|于某个时间点|"
+            r"某一時間點|某一时间点|隨時間確認|随时间确认|"
+            r"一段時間內|一段时间内|於一段時間內|于一段时间内|"
+            r"在某時間點|在某时间点|時間點轉移|"
+            # 小计/净额
+            r".*收益總額$|.*收益总额$|.*收入總額$|.*收入总额$|"
+            r".*收益淨額$|.*收益净额$|.*收入淨額$|.*收入净额$)$")
         if _MED_PL.search(n):
             return True
     return False
@@ -584,13 +755,140 @@ def _trim_cost_section(table):
         if not isinstance(row, list) or len(row) < 1:
             continue
         c0 = str(row[0] or '').strip()
+        # 精确成本标记
         if _COST_SECTION_RE.search(c0):
             if has_product:
                 return table[:i]
-            return table  # 成本行前没产品，不截
+            return table
+        # 宽松成本检测：产品行后出现成本关键词 + 有金额 + 非产品名 → 截断
+        if has_product and re.search(r'成本|費用|费用|開支|开支|研發|研发|'
+                                      r'所得稅|所得税|撥備|拨备|減值|减值|'
+                                      r'行政開支|行政开支|銷售及|销售及|一般及', c0):
+            if any(re.search(r'\d', str(c or '')) for c in row[1:]):
+                # 不截产品名：包含产品/服务/业务/销售关键词
+                if not re.search(r'產品|产品|服務|服务|業務|业务|銷售|销售|'
+                                r'收益|收入|合約|合约', c0):
+                    return table[:i]
         if re.search(r'[一-鿿]', c0) and any(re.search(r'\d', str(c or '')) for c in row[1:]):
             has_product = True
     return table
+
+
+def _inject_cost_and_profit_from_full_table(full_table, rows, trimmed_table, typ):
+    """从原始全表中提取成本行和分部业绩行的值，注入到 rows 的 MBCOST/GROSS_PROFIT。
+
+    对列产品表：在 body 中找成本行和分部业绩行，按列位置匹配。
+    对分部表额外提取 GROSS_PROFIT（分部业绩）。
+    """
+    if not full_table or not rows:
+        return
+    header, body = _split_header_body(full_table)
+    nc = max((len(r) for r in full_table if isinstance(r, list)), default=0)
+
+    # 找成本行（适用于所有含成本段的表）
+    _COST_ROW_RE = re.compile(r'成本|銷售成本|销售成本|營業成本|营业成本')
+    cost_rows = []
+    for r in body:
+        lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+        if _COST_ROW_RE.search(lab):
+            if any(re.search(r"\d", str(r[c] or "")) for c in range(1, len(r))):
+                cost_rows.append(r)
+
+    # 找分部业绩行（仅分部表）
+    seg_row = None
+    if typ.startswith("分部"):
+        _SEG_PROFIT_RE = re.compile(
+            r'分部業績|分部业绩|分部利潤|分部利润|分部溢利|分部亏损|'
+            r'分部業績/\(虧損\)|分部.*業績|分部.*业绩|分部.*溢利|'
+            r'分部.*利潤|分部.*利润')
+        for r in body:
+            lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+            if _SEG_PROFIT_RE.search(lab):
+                if any(re.search(r"\d", str(r[c] or "")) for c in range(1, len(r))):
+                    seg_row = r
+                    break
+
+    if not cost_rows and not seg_row:
+        return
+
+    # 从 trim 表 header 重建列→产品名映射
+    trim_header, _ = _split_header_body(trimmed_table)
+    col_to_product = {}
+    _UNIT_NAME_RE = re.compile(
+        r"(千港元|千元|千美元|千令吉|千新加坡元|"
+        r"人民幣千元|人民币千元|人民幣|人民币|"
+        r"百萬元|百万元|百萬港元|百万港元|"
+        r"港幣千元|港币千元|港元|美元|美金|"
+        r"未經審核|未经审核|經審核|经审核|"
+        r"二零[一二三四五六七八九零]{2,3}年|20\d{2}年|"
+        r"\([^)]*\)|（[^）]*）)"
+    )
+    for r in reversed(trim_header):
+        for c in range(1, min(nc, len(r))):
+            if c in col_to_product:
+                continue
+            name = fullwidth_to_halfwidth(str(r[c] or "").strip())
+            name = re.sub(r"\s+", "", name).strip()
+            if not name or not re.search(r"[一-鿿A-Za-z]{2,}", name):
+                continue
+            name = _UNIT_NAME_RE.sub("", name).strip()
+            if not name or not re.search(r"[一-鿿A-Za-z]{2,}", name):
+                continue
+            if re.match(r"^(合[计計]|總[计計]|小[计計]|總收入|总收入|"
+                        r"總收益|总收益|總計|总计|合計|合计|總額|总额)", name) or \
+               re.search(r"(總計|总计|合計|合计|總額|总额|總收益|总收益|總收入|总收入)$", name):
+                name = "合计"
+            col_to_product[c] = name
+
+    if not col_to_product:
+        return
+
+    periods = _find_periods(trimmed_table)
+
+    def _match_inject(target_rows, field, label_year_re=None):
+        """将 target_rows 中各列的值注入 rows 中匹配的条目。"""
+        for tgt_row in target_rows:
+            # 检测该行的年份标签（如"2025年成本"）
+            row_year = None
+            if label_year_re:
+                tgt_lab = fullwidth_to_halfwidth(str(tgt_row[0] or "").strip())
+                ym = label_year_re.search(tgt_lab)
+                if ym:
+                    row_year = ym.group(1)
+
+            for col, prod_name in col_to_product.items():
+                if col >= len(tgt_row):
+                    continue
+                val = str(tgt_row[col] or "").strip()
+                if not val or val == "-":
+                    continue
+                # 匹配 rows
+                for e in rows:
+                    if e.get("product_name") != prod_name:
+                        continue
+                    if e.get(field):
+                        continue  # 已有值，不覆盖
+                    if periods and row_year:
+                        for pc, y, sd, ed in periods:
+                            if pc == col and e.get("start_date") == sd and e.get("end_date") == ed:
+                                # 行年份匹配
+                                if row_year and (row_year in e.get("year", "") or
+                                                row_year in e.get("start_date", "")):
+                                    e[field] = val
+                    elif periods:
+                        for pc, y, sd, ed in periods:
+                            if pc == col and e.get("start_date") == sd and e.get("end_date") == ed:
+                                e[field] = val
+                    elif not e.get(field):
+                        e[field] = val
+
+    yr_re = re.compile(r'(20\d{2})')
+    # 注入成本
+    if cost_rows:
+        _match_inject(cost_rows, "mbcost", yr_re)
+    # 注入分部业绩
+    if seg_row:
+        _match_inject([seg_row], "gross_profit", yr_re)
 
 
 def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=None):
@@ -612,6 +910,8 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
         return res
 
     # 含成本段 → 先截掉成本只留收入段
+    # 记录原始表用于后续 GROSS_PROFIT 提取
+    full_table = target_table if "_含成本段" in typ else None
     if "_含成本段" in typ:
         target_table = _trim_cost_section(target_table)
         typ = typ.replace("_含成本段", "")
@@ -630,6 +930,39 @@ def get_res(selected, info_code, reason_arr, notice_date="", last_period_data=No
     if not rows:
         reason_arr.append("提取为空")
         return res
+
+    # 检测币种并注入每条记录
+    currency = _detect_currency(target_table)
+    if currency:
+        for r in rows:
+            if not r.get("currency"):
+                r["currency"] = currency
+
+    # 检测单位（百万元/千元/元）并注入每条记录
+    unit_code = _detect_unit(target_table, currency)
+    if unit_code:
+        for r in rows:
+            if not r.get("unit"):
+                r["unit"] = unit_code
+
+    # 分部表：从原始（未截断）全表中提取 GROSS_PROFIT 和 MBCOST
+    if full_table:
+        _inject_cost_and_profit_from_full_table(full_table, rows, target_table, typ)
+
+    # 后处理：过滤明显的P&L噪声行（短标签+精确匹配PL模式+不在LP中）
+    if len(rows) > 1:
+        lp_names_post = [fullwidth_to_halfwidth(str(r.get("PRODUCTNAME", "")).strip())
+                        for r in (last_period_data or []) if isinstance(r, dict)]
+        filtered = []
+        for r in rows:
+            pn = str(r.get('product_name', ''))
+            cjk_count = len([c for c in pn if '一' <= c <= '鿿'])
+            # 仅过滤：短CJK名(≤4字) + 精确PL标签匹配 + 不在LP中
+            if (cjk_count <= 4 and _PL_ROW_LABEL_RE.search(pn)
+                    and pn not in lp_names_post and pn != '合计'):
+                continue
+            filtered.append(r)
+        rows = filtered
 
     res["target_res"] = rows
     return res
@@ -710,6 +1043,9 @@ def _detect_subcolumn_metrics(table):
         r'變動率|变动率|增長率|增长率)$')
 
     for row in reversed(hdr):
+        # 左补齐到 max_cols，避免列错位
+        if len(row) < max_cols:
+            row = [''] * (max_cols - len(row)) + list(row)
         labels = {}
         all_metric = True
         for c in range(1, len(row)):
@@ -763,10 +1099,20 @@ def extract_type1(table, last_period_data=None):
     periods = _find_periods(table)
     sub_metrics = _detect_subcolumn_metrics(table)
 
-    # 子列度量检测仅用于信息披露，不实际过滤列
-    # PDF 提取中表头列对齐经常偏移，列级过滤不可靠
-    # 依赖后续的值级别去重（保留最大数值 = 收入/金额）来处理多列重复
+    # 子列度量检测：跳过非收入列（成本/百分比等）
     skip_cols = set()
+    if sub_metrics:
+        for col_idx, label in sub_metrics.items():
+            if _should_skip_subcolumn(label):
+                skip_cols.add(col_idx)
+    # 补充检测：表头中带有"成本/費用/開支"的列也应跳过
+    if not skip_cols:
+        hdr, _ = _split_header_body(table)
+        for row in hdr[-3:]:
+            for c in range(1, len(row)):
+                cell = str(row[c] or '').strip()
+                if re.search(r'成本|費用|费用|開支|开支', cell) and not re.search(r'收入|收益|Revenue', cell):
+                    skip_cols.add(c)
 
     # 1. 全量提取原始行
     raw = []  # [(name, [(col, sd, ed, value), ...]), ...]
@@ -775,6 +1121,16 @@ def extract_type1(table, last_period_data=None):
         if not isinstance(row, list) or len(row) < 2:
             continue
         name = fullwidth_to_halfwidth(str(row[0] or "").strip())
+
+        # 双语表：col0 无中文 + col1 有中文 → 用 col1 作为产品名
+        if not re.search(r'[一-鿿]', name) and len(row) >= 2:
+            c1 = fullwidth_to_halfwidth(str(row[1] or "").strip())
+            if c1 and re.search(r'[一-鿿]', c1) and len(c1) >= 2:
+                name = c1
+
+        # 跳过"其中:"子项（"of which" breakdown，不是独立产品）
+        if re.match(r'其中[：:\s]', name):
+            continue
 
         # 检测层级关系："--" 或 "——" 开头 → 子项，继承父产品名
         is_child = bool(re.match(r'^[-\–—]{1,3}', name))
@@ -845,6 +1201,25 @@ def extract_type1(table, last_period_data=None):
             else:
                 removed.append((name, vals))
 
+        # 2.5 从 kept 中排除非核心收入项目（股息收入/利息收入等），仅当已有LP匹配的产品时
+        if kept and lp_names:
+            _NON_CORE_REVENUE_KEPT = re.compile(
+                r'(股息收入|利息收入|其他收入|租金收入|投資收入|財務收入|'
+                r'汇兑收益|匯兌收益|政府補助|政府补助|出售.*收益|'
+                r'其他收益及虧損|其他收益及亏损|其他經營收入|其他经营收入|'
+                r'投資物業.*租金|投资物业.*租金|'
+                r'銀行利息|银行利息|存款利息)')
+            lp_set = set(lp_names)
+            has_lp_match = any(
+                any(x in name or name in x for x in lp_set)
+                for name, _ in kept if name != "合计"
+            )
+            if has_lp_match:
+                kept = [(name, vals) for name, vals in kept
+                        if name == "合计"
+                        or any(x in name or name in x for x in lp_set)
+                        or not _NON_CORE_REVENUE_KEPT.search(name)]
+
         # 3. removed 行值累加 = 某个保留行 → 确认子项，删除
         if removed:
             kept_sums = {}
@@ -872,8 +1247,58 @@ def extract_type1(table, last_period_data=None):
 
             removed = [(n, v) for n, v in removed if n not in confirmed_children]
 
-        # 新产品也保留（上期数据是白名单，不是过滤器）
-        raw = kept + removed
+        # 新产品也保留但过滤明显非产品的行
+        filtered_removed = []
+        for rname, rvals in removed:
+            cjk_count = len([c for c in rname if '一' <= c <= '鿿'])
+            # 至少3CJK字符或英文长名或LP匹配+非噪声
+            looks_valid = (cjk_count >= 3
+                          or bool(re.search(r'[A-Za-z]{4,}', rname))
+                          or any(x in rname or rname in x for x in lp_names))
+            # 排除明显P&L噪声
+            is_noise = (_is_noise_label(rname)
+                       or _PL_ROW_LABEL_RE.search(rname)
+                       or _PL_BODY_INDICATOR.search(rname))
+            if looks_valid and not is_noise:
+                # 额外检查：非产品段标题特征（地区、客户类型、时间等）
+                _SECTION_TITLE_RE = re.compile(
+                    r'^(按地区|按地區|按地域|按客户|按客戶|按.*時間|按.*时间|'
+                    r'地區市場|地区市场|地域市場|地域市场|區域市場|区域市场|'
+                    r'第三方|關聯方|关联方|'
+                    r'確認收入時間|确认收入时间|'
+                    # IFRS15 收入确认时间标签（絕不是产品名）
+                    r'於某一時間點|于某一时间点|於某個時間點|于某个时间点|'
+                    r'某一時間點|某一时间点|於.*時間點|于.*时间点|'
+                    r'隨時間|随时间|隨時間推移|随时间推移|'
+                    r'於一段時間內|于一段时间内|一段時間內|一段时间内|'
+                    r'在某時間點|在某时间点|時間點轉移|时间点转移|'
+                    # 小计/净额/总额标签
+                    r'.*總額$|.*总额$|.*總計$|.*总计$|.*小計$|.*小计$|'
+                    r'.*淨額$|.*净额$|.*凈額$|.*收益總額$|.*收益总额$|'
+                    # 地区/地理标签
+                    r'中國內地$|中国内地$|中國大陸$|中国大陆$|'
+                    r'香港$|澳門$|澳门$|台灣$|台湾$|海外$|'
+                    r'其他地區$|其他地区$|其他地域$|'
+                    r'馬來西亞$|马来西亚$|新加坡$|美國$|美国$|日本$|'
+                    # 其他非产品行
+                    r'收益分析$|收入分析$|經營業績$|经营业绩$|'
+                    r'客戶合約收益$|客户合约收益$|客戶合約收入$|客户合约收入$|'
+                    r'合約收益$|合约收益$|合約收入$|合约收入$)$')
+                # 非核心收入项目：当已有匹配LP的产品行时，排除不相关的收入项
+                _NON_CORE_REVENUE = re.compile(
+                    r'(股息收入|利息收入|其他收入|租金收入|投資收入|財務收入|'
+                    r'汇兑收益|匯兌收益|政府補助|政府补助|出售.*收益|'
+                    r'其他收益及虧損|其他收益及亏损|其他經營收入|其他经营收入)')
+                if not _SECTION_TITLE_RE.match(rname):
+                    # 非核心收入项：仅当它不在LP名称中且有其他更匹配的产品时才排除
+                    is_non_core = bool(_NON_CORE_REVENUE.search(rname))
+                    is_lp_item = any(x in rname or rname in x for x in lp_names)
+                    if is_non_core and not is_lp_item and kept:
+                        # 有LP匹配的核心产品存在，排除此项
+                        pass
+                    else:
+                        filtered_removed.append((rname, rvals))
+        raw = kept + filtered_removed
 
         # 3.5 去重：同名集合中，优先保留 lp 精确匹配，删纯包含匹配的
         if lp_names and len(raw) > 1:
@@ -911,7 +1336,9 @@ def extract_type1(table, last_period_data=None):
         out = deduped
 
     # GT 有合计但提取没有 → 按期间累加生成合计
-    if lp_raw and "合计" in lp_raw and not any(e["product_name"] == "合计" for e in out):
+    # 单产品或有产品时都尝试生成合计
+    should_gen_sum = ("合计" in lp_raw if lp_raw else len(out) > 0)
+    if should_gen_sum and not any(e["product_name"] == "合计" for e in out):
         period_sums = {}
         other_names = set()
         for e in out:
@@ -982,13 +1409,22 @@ def _find_periods(table):
     if not all_years:
         all_years = _extract_years_from_text(text)
 
-    # 每列找年份，找不到就用全表年份兜底
+    # 每列找年份，提取该列的月/日用于精确期间计算
     out, seen = [], set()
     for c in range(1, nc):
         hdr = " ".join(str(r[c] or "") for r in padded if c < len(r))
         col_years = _extract_years_from_text(hdr)
         if not col_years:
-            col_years = all_years
+            # 只兜底有显式年份标签的列；无年份列不映射（避免USD列等重复）
+            if all_years:
+                col_years = [all_years[0]]  # 只取第一个年份，不重复全表年份
+            else:
+                col_years = []
+        # 从该列 header 提取月日
+        col_mm, col_dd = mm, dd
+        col_m = re.search(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日", hdr)
+        if col_m:
+            col_mm, col_dd = int(col_m.group(1)), int(col_m.group(2))
         for y in col_years:
             if (c, y) in seen:
                 continue
@@ -996,25 +1432,20 @@ def _find_periods(table):
             import datetime, calendar
             try:
                 yi = int(y)
-                # Use actual month/day from the table, defaulting to 12/31
-                ed_day = dd if mm != 2 else min(dd, 28)
+                ed_day = col_dd if col_mm != 2 else min(col_dd, 28)
                 try:
-                    ed = datetime.date(yi, mm, ed_day)
+                    ed = datetime.date(yi, col_mm, ed_day)
                 except ValueError:
-                    ed = datetime.date(yi, mm, 28)
+                    ed = datetime.date(yi, col_mm, 28)
                 if half:
-                    # Half-year: period starts first day of (report_month - 5)th month
-                    # HK convention: Jul 1 - Dec 31, Jan 1 - Jun 30, etc.
-                    start_month = mm - 5
+                    start_month = col_mm - 5
                     start_year = yi
                     if start_month <= 0:
                         start_month += 12
                         start_year -= 1
                     sd = datetime.date(start_year, start_month, 1)
                 else:
-                    # Full year: start = day after previous year's report date
-                    # Dec 31 → Jan 1; Jun 30 → Jul 1; Mar 31 → Apr 1
-                    start_month = mm + 1
+                    start_month = col_mm + 1
                     start_year = yi - 1
                     if start_month > 12:
                         start_month = 1
@@ -1023,6 +1454,14 @@ def _find_periods(table):
                 out.append((c, y, sd.strftime("%Y-%m-%d"), ed.strftime("%Y-%m-%d")))
             except Exception:
                 out.append((c, y, f"{int(y)-1}-12-31", f"{y}-12-31"))
+
+    # Period-per-column dedup: each col gets its most recent year
+    col_best = {}
+    for entry in out:
+        c, y, sd, ed = entry
+        if c not in col_best or y > col_best[c][1]:
+            col_best[c] = entry
+    out = list(col_best.values())
     return out
 
 
@@ -1043,6 +1482,23 @@ def extract_type2(table, last_period_data=None):
     )
     products = {}
     for r in reversed(header):
+        # 检测 span 行：>=60% 的非空 cell 文本相同 → 跨列标签行，跳过
+        # 但不跳过含合计/年份的行（它们是真正的表头行）
+        non_empty_cells = [str(r[c] or "").strip() for c in range(1, min(nc, len(r)))
+                          if str(r[c] or "").strip()]
+        if len(non_empty_cells) >= 3:
+            from collections import Counter
+            cell_counts = Counter(non_empty_cells)
+            most_common_text, most_common_count = cell_counts.most_common(1)[0]
+            # 常见重复文本是年份/日期 → 不是 span 标签，不要跳过
+            is_year_like = bool(re.match(r'^(20\d{2}|二零|截至)', most_common_text))
+            # 行中包含合计/总计 → 是真正的表头行
+            has_total = any(re.match(r'^(合[计計]|總[计計]|小[计計]|總收入|總收益|總計|总计|合計|合计|總額|总额)', c)
+                          for c in non_empty_cells)
+            if not is_year_like and not has_total and most_common_count >= max(2, int(len(non_empty_cells) * 0.6)):
+                # 该行大部分列文本相同，是 span 标签行（如"於六月三十日"、"未經審核"）
+                continue
+
         for c in range(1, min(nc, len(r))):
             name = fullwidth_to_halfwidth(str(r[c] or "").strip())
             name = re.sub(r"\s+", "", name).strip()
@@ -1065,10 +1521,30 @@ def extract_type2(table, last_period_data=None):
                 continue
             if re.search(r'\d{1,2}\s*月\s*\d{1,2}\s*日', name):
                 continue
+            # 排除 IFRS15 时间标签（絕不是产品名列头）
+            if re.search(r'(時間點|时间点|時點|时点|時間段|时间段|時段|时段|'
+                        r'隨時間|随时间|一段時間|一段时间|'
+                        r'於某|于某|在某|某一時|某個時)', name) and \
+               len(name) <= 15 and not re.search(r'(服務|服务|產品|产品|銷售|销售|收入|收益)$', name):
+                continue
+            # 水平续名拼接：当前cell以"及/與/和/、"开头且左列已有产品名 → 拼到左列
+            if re.match(r'^[及與和、/]', name) and c > 1 and (c - 1) in products:
+                left_name = products[c - 1]
+                combined = left_name + name
+                # 检查左列是否在同一header行也被更新过（避免覆盖刚拼好的名）
+                # 将拼接结果放到左列，当前列也记录以便后续引用
+                products[c - 1] = combined
+                products[c] = name  # 暂时记录续名部分，后续可能被上层行覆盖
+                continue
+
             # 若已有值且是 span 文本（全列同文），允许覆盖
             # span 文本特征：长 >15 字，或含特定关键词
             if c in products:
                 old = products[c]
+                # 续名拼接：下层是"及休閒"开头的续名 → 上层"健康醫療"拼接为"健康醫療及休閒"
+                if re.match(r'^[及與和、/]', old):
+                    products[c] = name + old
+                    continue
                 if len(old) > 15 or re.search(r'分部|業績|资产|负债|資產|負債|計量|计量', old):
                     pass  # 覆盖 span 文本
                 else:
@@ -1096,16 +1572,94 @@ def extract_type2(table, last_period_data=None):
                     name = "合计"
                 products[c] = name
 
-    # 2. 从表身找收入行：优先收入/收益/銷售/外部/Revenue，跳过值全空的行
+    # 2. 从表身找收入行：优先外部/對外收入行，再兜底通用收入行
     revenue_row = None
+    # Pass 1: 外部/對外客户收入行（最精确）
+    _REV_EXT = re.compile(r'對外交易|对外交易|外部客户|外部客戶|來自外部|来自外部|外界客户|外界客戶')
     for r in body:
         lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
-        if re.search(r"收入|收益|銷售|销售|營業|营业|外部|對外|对外|Revenue", lab) \
-                and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息|确认|時間|間", lab):
-            # 验证该行确实有数字
+        if _REV_EXT.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅", lab):
             if any(re.search(r"\d", str(r[c] or "")) for c in range(1, len(r))):
                 revenue_row = r
                 break
+    # Pass 2: 通用收入/收益行（优先简单标签，避免"其他營業收入"类子项）
+    if not revenue_row:
+        _REV_GEN = re.compile(r"收入|收益|銷售|销售|營業|营业|Revenue")
+        _REV_SUBITEM = re.compile(r'其他|其它|其中')
+        candidates = []
+        for r in body:
+            lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+            if _REV_GEN.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅|利息|确认|時間|間", lab):
+                valid_cols = sum(1 for c in range(1, len(r))
+                               if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
+                if valid_cols > 0:
+                    # 评分：非子项标签优先、更短标签优先、更多有效列优先
+                    is_sub = bool(_REV_SUBITEM.search(lab))
+                    score = (0 if not is_sub else 1, len(lab), -valid_cols)
+                    candidates.append((score, r))
+        if candidates:
+            candidates.sort(key=lambda x: x[0])
+            revenue_row = candidates[0][1]
+    # Pass 3: 从所有候选收入行中选最优
+    # 优先：對外/外部行（IFRS 8要求披露外部客户收入）
+    if not revenue_row:
+        _REV_ANY = re.compile(r"收入|收益|銷售|销售|營業|营业|Revenue|對外|对外", re.I)
+        _REV_EXT = re.compile(r'對外交易|对外交易|外部客户|外部客戶|來自外部|来自外部|外界客户', re.I)
+        ext_candidates = []
+        gen_candidates = []
+        for r in body:
+            lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+            if _REV_ANY.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅", lab):
+                valid_cols = sum(1 for c in range(1, len(r))
+                               if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
+                if valid_cols > 0:
+                    if _REV_EXT.search(lab):
+                        ext_candidates.append((valid_cols, r))
+                    else:
+                        gen_candidates.append((valid_cols, r))
+        # 优先选外部行（IFRS8要求），再选通用收入行
+        # 但若通用收入行包含「總收益/總收入/收益總額」且有效列数与外部行接近，优先选总额行
+        # （GT 通常用经分部间抵销后的總收益，而非外部客户收益）
+        _REV_TOTAL = re.compile(r'總收益|总收益|總收入|总收入|收益總額|收益总额|收入總額|收入总额')
+        if ext_candidates:
+            best_ext_cols, best_ext_row = max(ext_candidates, key=lambda x: x[0])
+            total_candidates = [(cols, r) for cols, r in gen_candidates
+                              if _REV_TOTAL.search(fullwidth_to_halfwidth(str(r[0] or "").strip()))]
+            if total_candidates:
+                best_total_cols, best_total_row = max(total_candidates, key=lambda x: x[0])
+                # 总额行的有效列数 >= 外部行有效列数的 60%，说明是完整的总收益行
+                if best_total_cols >= max(1, int(best_ext_cols * 0.6)):
+                    revenue_row = best_total_row
+                else:
+                    revenue_row = best_ext_row
+            else:
+                revenue_row = best_ext_row
+        elif gen_candidates:
+            revenue_row = max(gen_candidates, key=lambda x: x[0])[1]
+
+    # Pass 3.5: 验证所选收入行的有效列数是否合理（>= 产品列数的 50%）
+    if revenue_row and products:
+        n_products = len(products)
+        n_valid = sum(1 for c in range(1, min(len(revenue_row), nc))
+                     if str(revenue_row[c] or "").strip() and str(revenue_row[c] or "").strip() != "-")
+        if n_valid < max(1, int(n_products * 0.5)):
+            # 所选行有效值太少，可能是子项行，尝试找更好的候选
+            _REV_ANY = re.compile(r"收入|收益|銷售|销售|營業|营业|Revenue|對外|对外", re.I)
+            _REV_EXT = re.compile(r'對外交易|对外交易|外部客户|外部客戶|來自外部|来自外部|外界客户', re.I)
+            better_candidates = []
+            for r in body:
+                if r is revenue_row:
+                    continue
+                lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+                if _REV_ANY.search(lab) and not re.search(r"成本|费用|費用|開支|开支|税|稅", lab):
+                    valid_cols = sum(1 for c in range(1, len(r))
+                                   if str(r[c] or "").strip() and str(r[c] or "").strip() != "-")
+                    if valid_cols > n_valid:
+                        better_candidates.append((valid_cols, r))
+            if better_candidates:
+                better_candidates.sort(key=lambda x: -x[0])
+                revenue_row = better_candidates[0][1]
+    # Pass 4: 兜底任一有数字的行
     if not revenue_row:
         for r in body:
             if any(re.search(r"\d", str(c or "")) for c in r[1:]):
@@ -1115,30 +1669,60 @@ def extract_type2(table, last_period_data=None):
     if not revenue_row or not products:
         return []
 
+    # 检测多年度块表：body中有多个带年份+收入关键词的行（如"2025年收入"+"2024年收入"）
+    revenue_rows = [revenue_row]
+    year_label_re = re.compile(r'(20\d{2}|二零[一二三四五六七八九零]{2})年?')
+    _YEAR_REV_RE = re.compile(r'(20\d{2}|二零).{0,6}(收入|收益|Revenue)', re.I)
+    primary_year = year_label_re.search(fullwidth_to_halfwidth(str(revenue_row[0] or '')))
+    if primary_year and _YEAR_REV_RE.search(fullwidth_to_halfwidth(str(revenue_row[0] or ''))):
+        seen_years = {primary_year.group(0)}
+        for r in body:
+            if r is revenue_row:
+                continue
+            lab = fullwidth_to_halfwidth(str(r[0] or "").strip())
+            yr_match = year_label_re.search(lab)
+            if yr_match and yr_match.group(0) not in seen_years:
+                # 必须也像收入行（含收入关键词或金额充足）
+                if _YEAR_REV_RE.search(lab) or sum(1 for c in r[1:] if re.search(r'\d', str(c or ''))) >= 2:
+                    revenue_rows.append(r)
+                    seen_years.add(yr_match.group(0))
+
     # 3. 上期产品名只用于 合计 补全判断，不过滤产品（允许新产品出现）
     lp_names = [fullwidth_to_halfwidth(str(r.get("PRODUCTNAME", "")).strip())
                 for r in (last_period_data or []) if isinstance(r, dict)]
 
-    # 4. 提取
+    # 4. 提取（支持多收入行）
     out = []
-    for col, prod_name in products.items():
-        if col >= len(revenue_row):
-            continue
-        v = str(revenue_row[col] or "").strip()
-        if not v or v == "-":
-            continue
+    periods = _find_periods(table)
+    for row_idx, rev_row in enumerate(revenue_rows):
+        for col, prod_name in products.items():
+            if col >= len(rev_row):
+                continue
+            v = str(rev_row[col] or "").strip()
+            if not v or v == "-":
+                continue
 
-        periods = _find_periods(table)
-        if periods:
-            for pc, y, sd, ed in periods:
-                if pc == col:
-                    out.append({"product_name": prod_name, "mbrevenue": v,
-                                "start_date": sd, "end_date": ed,
-                                "year": y})
-        else:
-            out.append({"product_name": prod_name, "mbrevenue": v,
-                        "start_date": "", "end_date": "",
-                        "year": ""})
+            if periods:
+                # 如果多收入行，期间检测与行关联（同一列，每行匹配其对应年份）
+                if len(revenue_rows) > 1:
+                    row_year = year_label_re.search(fullwidth_to_halfwidth(str(rev_row[0] or '')))
+                    for pc, y, sd, ed in periods:
+                        if pc == col:
+                            # 仅匹配该行对应年份的期间
+                            if row_year and y in row_year.group(0):
+                                out.append({"product_name": prod_name, "mbrevenue": v,
+                                            "start_date": sd, "end_date": ed, "year": y})
+                            elif not row_year:
+                                out.append({"product_name": prod_name, "mbrevenue": v,
+                                            "start_date": sd, "end_date": ed, "year": y})
+                else:
+                    for pc, y, sd, ed in periods:
+                        if pc == col:
+                            out.append({"product_name": prod_name, "mbrevenue": v,
+                                        "start_date": sd, "end_date": ed, "year": y})
+            else:
+                out.append({"product_name": prod_name, "mbrevenue": v,
+                            "start_date": "", "end_date": "", "year": ""})
 
     # 自动补合计
     lp_has_total = any(str(r.get("PRODUCTNAME", "")).strip() == "合计"
@@ -1161,13 +1745,28 @@ def extract_type2(table, last_period_data=None):
                     out.append({"product_name": "合计", "mbrevenue": str(int(total)),
                                 "start_date": sd, "end_date": ed,
                                 "year": sd[:4] if sd else ed[:4] if ed else ""})
-            # 单产品 + lp有合计 → 复制产品值作为合计
-            elif len(product_names) == 1 and lp_has_total:
+            # 单产品 → 复制产品值作为合计（GT 几乎总会有合计）
+            elif len(product_names) == 1:
                 for e in out:
                     if e["product_name"] != "合计":
                         out.append({"product_name": "合计", "mbrevenue": e["mbrevenue"],
                                     "start_date": e["start_date"], "end_date": e["end_date"],
                                     "year": e["year"]})
+
+    # 值级别去重：同一 (product, period) 保留数值最大的
+    if len(out) > 1:
+        groups = {}
+        for e in out:
+            key = (e['product_name'], e['start_date'], e['end_date'])
+            groups.setdefault(key, []).append(e)
+        deduped = []
+        for key, entries in groups.items():
+            if len(entries) == 1:
+                deduped.append(entries[0])
+            else:
+                best = max(entries, key=lambda x: abs(_to_num(x['mbrevenue']) or 0))
+                deduped.append(best)
+        out = deduped
 
     return out
 
@@ -1320,10 +1919,18 @@ def extract_type3(table, last_period_data=None):
     _REVENUE_END = re.compile(
         r'^(收入合計|收入合计|收益合計|收益合计|'
         r'收入總額|收入总额|收益總額|收益总额|'
-        r'淨收入|净收入|合[计計]|總[计計]|'
+        r'淨收入|净收入|淨收入總額|净收入总额|'
+        r'總收入|总收入|總收益|总收益|'
+        r'合[计計]|總[计計]|總額|总额|'
         r'銷售成本|销售成本|服務成本|服务成本|營業成本|营业成本|'
-        r'毛利|營業費用|营业费用|研發|研发|'
-        r'銷售及|销售及|行政開支|行政开支|一般及)')
+        r'產品收入的成本|合作收入的成本|'
+        r'毛利$|毛利:|營業費用|营业费用|研發|研发|'
+        r'銷售及|销售及|行政開支|行政开支|一般及|'
+        r'撮合.*發起|撮合.*发起|融資成本|融资成本|'
+        r'銷售及營銷|销售及营销|應收.*撥備|应收.*拨备|'
+        r'運營成本|运营成本|經營收益|经营收益|'
+        r'利息收入|利息支出|利息開支|利息开支|'
+        r'銷售成本總額|销售成本总额|營業費用總額|营业费用总额)$')
     _COST_EXPENSE = re.compile(
         r'成本|費用|费用|開支|开支|毛利|研發|研发|'
         r'融資|融资|利息|所得稅|所得税|稅前|税前')
@@ -1488,12 +2095,37 @@ def extract_type3(table, last_period_data=None):
                 out.append({'product_name': '合计', 'mbrevenue': str(int(total)),
                             'start_date': sd, 'end_date': ed,
                             'year': sd[:4] if sd else ed[:4] if ed else ''})
+
+    # 值级别去重：同一 (product, period) 保留数值最大的（解决CNY/USD列重复）
+    if len(out) > 1:
+        groups = {}
+        for e in out:
+            key = (e['product_name'], e['start_date'], e['end_date'])
+            groups.setdefault(key, []).append(e)
+        deduped = []
+        for key, entries in groups.items():
+            if len(entries) == 1:
+                deduped.append(entries[0])
+            else:
+                best = max(entries, key=lambda x: abs(_to_num(x['mbrevenue']) or 0))
+                deduped.append(best)
+        out = deduped
+
     return out
 
 
 def _format_type3_output(row, periods, product_name):
     """从单行提取格式化的输出列表."""
     out = []
+    # 检测附注/脚注编号列：col2有金额且col1是1位纯数字+col0无数字→跳过col1(footnote ref)
+    first_val_col = 1
+    if len(row) > 2:
+        c0 = str(row[0] or '').strip()
+        c1 = str(row[1] or '').strip()
+        c2 = str(row[2] or '').strip()
+        if (c1 and re.fullmatch(r'\d', c1) and c2 and re.search(r'\d', c2)
+                and not re.search(r'\d', c0)):
+            first_val_col = 2
     if periods:
         for col, _y, sd, ed in periods:
             if col >= len(row):
@@ -1504,7 +2136,7 @@ def _format_type3_output(row, periods, product_name):
                             'start_date': sd, 'end_date': ed,
                             'year': _y})
     else:
-        for c in range(1, len(row)):
+        for c in range(first_val_col, len(row)):
             v = str(row[c] or '').strip()
             if v and re.search(r'\d', v):
                 out.append({'product_name': product_name, 'mbrevenue': v,

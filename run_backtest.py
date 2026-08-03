@@ -1,14 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-PDF baseline backtest standalone — run EAPS_HKCO_FN_PRODUCT extractor against ground_truth.json.
+PDF baseline 回测：跑 schema.extract_module（或 EAPS_<task>）→ 对比 ground_truth.json → 出 report.html
 
-Usage:
+用法:
   python run_backtest.py --task HKCO_FN_PRODUCT
   python run_backtest.py --task HKCO_FN_PRODUCT --infocode AN202601231818340370
+
+  # 用某次跑批的抽取结果覆盖 ground_truth.json 里该公告（整表替换）
   python run_backtest.py --task HKCO_FN_PRODUCT --accept-gt --infocode AN202601291818549232
-  python run_backtest.py --task HKCO_FN_PRODUCT --accept-gt --infocode AN... --run-dir batch_runs/HKCO_FN_PRODUCT/20260801_191551
+  python run_backtest.py --task HKCO_FN_PRODUCT --accept-gt --infocode AN... --run-dir batch_runs/HKCO_FN_PRODUCT/20260724_133332
+
+默认跑 ground_truth.json 里全部公告；先均分公告，默认 4 进程各跑各的。
+批次目录: batch_runs/{task}/{YYYYMMDD_HHMMSS}/
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,52 +27,45 @@ import tempfile
 import traceback
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
-from urllib.parse import urlparse
 
-
+# 业务日时区：旧版把「东八区零点」存成 UTC（…T16:00:00Z），新版直接写日历日 …T00:00:00Z。
+# 比对/展示一律归一成 Asia/Shanghai 日历日，禁止再按 UTC 日期片（否则 2024-01-01 → 2023-12-31）。
 _BUSINESS_TZ = timezone(timedelta(hours=8))
 _PERIOD_DATE_FIELDS = ("STARTDATE", "REPORTDATE")
 
 DEFAULT_WORKERS = 4
-DEFAULT_REPORT_PORT = 8765
 
 ROOT = Path(__file__).resolve().parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-# GT 数据不存在于任何候选表的公告编码（MinerU 提取不到对应金额）
-_NO_CANDIDATE = set()
-
-_WRONG_SELECTION = set()
-
-_GT_NOT_IN_CANDIDATES = _NO_CANDIDATE | _WRONG_SELECTION
+# 保证直接 python run_backtest.py 也能 import src 下包
+_SRC = ROOT.parents[2]
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 TASKS_DIR = ROOT / "tasks"
 BATCH_RUNS = ROOT / "batch_runs"
 
-_COMPARE_PRODUCT_VALIDATOR = None
+# compare_one 可选产品名校验（run_backtest 启动时从 baseline 注入）
+_COMPARE_PRODUCT_VALIDATOR: Optional[Callable[[str], bool]] = None
 
 
 # ---------- utils ----------
 
-def write_json(path, payload):
-    path = Path(path)
+def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=str(path.parent)) as tmp:
         json.dump(payload, tmp, ensure_ascii=False, indent=2, default=str)
         tmp_name = tmp.name
-    os.replace(tmp_name, str(path))
+    os.replace(tmp_name, path)
 
 
-def norm(v):
+def norm(v: Any) -> str:
     return " ".join(str(v or "").strip().split())
 
 
-def to_float(v):
+def to_float(v: Any) -> Optional[float]:
     if isinstance(v, bool) or v is None:
         return None
     if isinstance(v, (int, float)):
@@ -80,7 +79,7 @@ def to_float(v):
         return None
 
 
-def get_path(obj, dotted):
+def get_path(obj: Any, dotted: str) -> Any:
     cur = obj
     for part in dotted.split("."):
         if not isinstance(cur, Mapping):
@@ -91,24 +90,26 @@ def get_path(obj, dotted):
 
 # ---------- load ----------
 
-def load_schema(task_dir):
-    path = Path(task_dir) / "schema.json"
+def load_schema(task_dir: Path) -> Dict[str, Any]:
+    path = task_dir / "schema.json"
     if not path.exists():
         raise FileNotFoundError(path)
     schema = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(schema, dict):
-        raise ValueError(f"schema.json must be object: {path}")
+        raise ValueError(f"schema.json 必须是对象: {path}")
     if not schema.get("fields"):
-        raise ValueError(f"schema.json missing fields: {path}")
+        raise ValueError(f"schema.json 缺少 fields: {path}")
     if not str(schema.get("pdf_dir") or "").strip():
-        raise ValueError(f"schema.json missing pdf_dir: {path}")
+        raise ValueError(f"schema.json 缺少 pdf_dir: {path}")
     return schema
 
 
-def _business_calendar_date(raw):
+def _business_calendar_date(raw: Any) -> Optional[str]:
+    """ISO/日期串 → 业务日历日 YYYY-MM-DD（东八区）。"""
     text = str(raw or "").strip()
     if not text:
         return None
+    # 已是纯日期
     if len(text) >= 10 and text[4] == "-" and text[7] == "-":
         head = text[:10]
         if "T" not in text and " " not in text:
@@ -125,32 +126,34 @@ def _business_calendar_date(raw):
     except ValueError:
         return None
     if dt.tzinfo is None:
+        # 无时区：按业务日历日字面量，不按 UTC 偏移
         return dt.date().isoformat()
     return dt.astimezone(_BUSINESS_TZ).date().isoformat()
 
 
-def _normalize_period_iso(raw):
+def _normalize_period_iso(raw: Any) -> Any:
+    """期间字段统一为日历日 UTC 零点 ISO；空值原样。"""
     cal = _business_calendar_date(raw)
     if not cal:
         return raw
     return f"{cal}T00:00:00.000Z"
 
 
-def _normalize_row_period_dates(row):
-    row = dict(row)
+def _normalize_row_period_dates(row: Dict[str, Any]) -> Dict[str, Any]:
     for f in _PERIOD_DATE_FIELDS:
         if f in row and row.get(f) not in (None, ""):
             row[f] = _normalize_period_iso(row.get(f))
     return row
 
 
-def load_gt(path):
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+def load_gt(path: Path) -> Dict[str, List[Dict[str, Any]]]:
+    """只接受 {infocode: [row, ...]}。期间字段读入即归一成日历日。"""
+    payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or not payload:
-        raise ValueError(f"ground_truth.json must be non-empty object: {path}")
+        raise ValueError(f"ground_truth.json 必须是非空对象: {path}")
     if not all(isinstance(v, list) for v in payload.values()):
-        raise ValueError(f"ground_truth.json each value must be list: {path}")
-    out = {}
+        raise ValueError(f"ground_truth.json 每个 value 必须是 list: {path}")
+    out: Dict[str, List[Dict[str, Any]]] = {}
     for k, v in payload.items():
         rows = []
         for x in v:
@@ -160,7 +163,7 @@ def load_gt(path):
     return out
 
 
-def _load_module_from_path(path, mod_name):
+def _load_module_from_path(path: Path, mod_name: str):
     spec = importlib.util.spec_from_file_location(mod_name, path)
     mod = importlib.util.module_from_spec(spec)
     assert spec and spec.loader
@@ -168,7 +171,8 @@ def _load_module_from_path(path, mod_name):
     return mod
 
 
-def resolve_extract_module(task_name, schema):
+def resolve_extract_module(task_name: str, schema: Mapping[str, Any]) -> Optional[str]:
+    """解析抽取模块：schema.extract_module > EAPS_<task> 约定 > None（回退 baseline.py）。"""
     explicit = str(schema.get("extract_module") or "").strip()
     if explicit:
         return explicit
@@ -182,39 +186,43 @@ def resolve_extract_module(task_name, schema):
     return None
 
 
-def load_extractor(task_dir, schema=None):
+def load_extractor(task_dir: Path, schema: Optional[Mapping[str, Any]] = None):
+    """加载抽取入口：优先 EAPS 生产模块，否则 tasks/<task>/baseline.py。"""
     schema = schema or load_schema(task_dir)
-    task_name = Path(task_dir).name
+    task_name = task_dir.name
     module_path = resolve_extract_module(task_name, schema)
     if module_path:
         mod = importlib.import_module(module_path)
         if not hasattr(mod, "extract_init"):
-            raise AttributeError(f"{module_path} missing extract_init")
+            raise AttributeError(f"{module_path} 缺少 extract_init")
         return mod
-    path = Path(task_dir) / "baseline.py"
+    path = task_dir / "baseline.py"
     if not path.exists():
         raise FileNotFoundError(
-            f"No extractor found: configure extract_module in schema.json, "
-            f"or provide {path}, or add custom.service.EAPS_{task_name}"
+            f"未找到抽取实现：请在 schema.json 配置 extract_module，"
+            f"或提供 {path}，或添加 custom.service.EAPS_{task_name}"
         )
     mod = _load_module_from_path(path, f"task_{task_name}")
     if not hasattr(mod, "extract_init"):
-        raise AttributeError(f"{path} missing extract_init")
+        raise AttributeError(f"{path} 缺少 extract_init")
     return mod
 
 
-def load_baseline(task_dir, schema=None):
+def load_baseline(task_dir: Path, schema: Optional[Mapping[str, Any]] = None):
+    """兼容旧名；同 load_extractor。"""
     return load_extractor(task_dir, schema)
 
 
-def local_pdf_href(pdf_path):
+def local_pdf_href(pdf_path: str) -> str:
+    """报告里用本地 file:// 链接打开 PDF；文件不存在时返回空。"""
     p = Path(pdf_path)
     if not p.exists():
         return ""
     return p.resolve().as_uri()
 
 
-def has_mineru_json(infocode, schema):
+def has_mineru_json(infocode: str, schema: Mapping[str, Any]) -> bool:
+    """本地只要有 MinerU 页 JSON 即可抽（可不依赖 PDF）。"""
     base = str(schema.get("mineru_json_base_dir") or "").strip()
     if not base:
         return False
@@ -227,27 +235,29 @@ def has_mineru_json(infocode, schema):
     return False
 
 
-def resolve_pdf_path(infocode, schema):
+def resolve_pdf_path(infocode: str, schema: Mapping[str, Any]) -> str:
     pdf_dir = str(schema["pdf_dir"]).strip()
     candidate = Path(pdf_dir) / f"{infocode}.pdf"
     if candidate.exists():
         return str(candidate)
+    # 无 PDF 但有 JSON：仍返回约定路径，抽取侧用 JSON 建 lines
     if has_mineru_json(infocode, schema):
         return str(candidate)
-    raise FileNotFoundError(f"Cannot find PDF and no MinerU JSON: {candidate}")
+    raise FileNotFoundError(f"找不到 PDF 且无 MinerU JSON: {candidate}")
 
 
-def select_infocodes(gt, infocode=""):
+def select_infocodes(gt: Mapping[str, Any], infocode: str = "") -> List[str]:
+    """默认：ground_truth.json 全部 key。"""
     all_ids = sorted(str(k) for k in gt.keys() if str(k).strip())
     if infocode:
         code = infocode.strip()
         if code not in gt:
-            raise KeyError(f"ground_truth.json does not contain: {code}")
+            raise KeyError(f"ground_truth.json 中没有该公告: {code}")
         return [code]
     return all_ids
 
 
-def find_jobs(infocodes, schema):
+def find_jobs(infocodes: Sequence[str], schema: Mapping[str, Any]) -> List[Dict[str, str]]:
     jobs = []
     missing = []
     json_only = []
@@ -259,21 +269,23 @@ def find_jobs(infocodes, schema):
             continue
         if not Path(pdf_path).exists():
             json_only.append(code)
-        jobs.append({
-            "infocode": code,
-            "pdf_path": pdf_path,
-            "pdf_url": local_pdf_href(pdf_path),
-        })
+        jobs.append(
+            {
+                "infocode": code,
+                "pdf_path": pdf_path,
+                "pdf_url": local_pdf_href(pdf_path),
+            }
+        )
     if json_only:
-        print(f"info: No PDF but MinerU JSON found, including: {len(json_only)} docs")
+        print(f"info: 无 PDF 但有 MinerU JSON，仍纳入: {len(json_only)} 个")
     if missing:
         preview = ", ".join(missing[:5])
-        more = f" and {len(missing)} more" if len(missing) > 5 else ""
-        print(f"warning: PDF and JSON not found locally, skipped: {preview}{more}")
+        more = f" 等{len(missing)}个" if len(missing) > 5 else ""
+        print(f"warning: 本地未找到 PDF 且无 JSON，已跳过: {preview}{more}")
     return jobs
 
 
-def extract_records(result, schema):
+def extract_records(result: Mapping[str, Any], schema: Mapping[str, Any]) -> List[Dict[str, Any]]:
     data_path = str(schema.get("data_path") or "data.records")
     records = get_path(result, data_path)
     if not isinstance(records, list):
@@ -281,7 +293,7 @@ def extract_records(result, schema):
     return [dict(r) for r in records if isinstance(r, Mapping)]
 
 
-def extract_pipeline(result, schema):
+def extract_pipeline(result: Mapping[str, Any], schema: Mapping[str, Any]) -> Dict[str, Any]:
     path = str(schema.get("pipeline_path") or "data.pipeline")
     pipeline = get_path(result, path)
     if isinstance(pipeline, dict):
@@ -289,53 +301,62 @@ def extract_pipeline(result, schema):
     return {}
 
 
-def infer_pipeline_stage(result, records, err):
+def infer_pipeline_stage(
+    result: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    err: str,
+) -> Dict[str, Any]:
+    """baseline 未写 pipeline 时的兜底分类。"""
     if str(result.get("status") or "") == "failed":
         return {
             "stage": "exception",
-            "stage_label": "exception",
+            "stage_label": "运行异常",
             "message": err or str(result.get("error_message") or "failed"),
         }
     if records:
-        return {"stage": "success", "stage_label": "success", "message": ""}
+        return {"stage": "success", "stage_label": "成功", "message": ""}
     if str(result.get("status") or "") == "no_data":
         return {
             "stage": "empty_output",
-            "stage_label": "empty_output",
-            "message": err or str(result.get("error_message") or "no extract result"),
+            "stage_label": "无输出",
+            "message": err or str(result.get("error_message") or "无抽取结果"),
         }
-    return {"stage": "unknown", "stage_label": "unknown", "message": err}
+    return {"stage": "unknown", "stage_label": "未知", "message": err}
 
 
 # ---------- compare ----------
 
-def resolve_fields(schema):
+def resolve_fields(schema: Mapping[str, Any]) -> List[str]:
     fields = schema.get("fields")
     if not fields:
-        raise ValueError("schema.fields cannot be empty")
+        raise ValueError("schema.fields 不能为空")
     return list(fields)
 
 
-def _norm_match_text(v):
+def _norm_match_text(v: Any) -> str:
+    """产品名比较归一：去空白、连字符统一、简繁折叠（与抽取侧一致），便于 in 匹配。"""
     s = norm(v)
     for ch in ("—", "–", "−", "－"):
         s = s.replace(ch, "-")
     s = s.lstrip("-").strip()
     try:
         from custom.service.EAPS_HKCO_FN_PRODUCT import _norm_product_name
+
         return _norm_product_name(s)
     except Exception:
         return "".join(s.split())
 
 
-def _product_names_compatible(a, b):
+def _product_names_compatible(a: Any, b: Any) -> bool:
+    """产品名兼容：归一后相等，或一方 in 另一方（GT 可省略前后缀）。"""
     na, nb = _norm_match_text(a), _norm_match_text(b)
     if not na or not nb:
         return na == nb
     return na == nb or na in nb or nb in na
 
 
-def _product_match_score(a, b):
+def _product_match_score(a: Any, b: Any) -> int:
+    """配对：精确 > in 包含（公共段越长优先）。"""
     na, nb = _norm_match_text(a), _norm_match_text(b)
     if not na or not nb:
         return 200 if na == nb else -1
@@ -346,21 +367,107 @@ def _product_match_score(a, b):
     return -1
 
 
-def _compatible_gt_products(pred_pn, gt_periods_by_product):
+def _compatible_gt_products(
+    pred_pn: str,
+    gt_periods_by_product: Mapping[str, set],
+) -> List[str]:
     return [gt_pn for gt_pn in gt_periods_by_product if _product_names_compatible(pred_pn, gt_pn)]
 
 
-def _row_has_numeric_anchor(row, value_fields):
+def _row_has_numeric_anchor(row: Mapping[str, Any], value_fields: Sequence[str]) -> bool:
+    """至少有一个可比较的数值字段，避免空值行仅靠币种/单位误配。"""
     return any(to_float(row.get(f)) is not None for f in value_fields)
 
 
-def field_sig(v, tol, field=""):
+def _pair_remaining_by_values(
+    exp_list: Sequence[Mapping[str, Any]],
+    pred_list: Sequence[Mapping[str, Any]],
+    used_exp: set,
+    used_pred: set,
+    value_fields: Sequence[str],
+    tol: float,
+) -> List[Tuple[int, int]]:
+    """名称对不上时：同报告期内按数值字段签名配对（收入/成本/币种/单位等一致则算同一行）。"""
+    if not value_fields:
+        return []
+    exp_by_sig: Dict[Tuple[Any, ...], List[int]] = defaultdict(list)
+    pred_by_sig: Dict[Tuple[Any, ...], List[int]] = defaultdict(list)
+    for i, row in enumerate(exp_list):
+        if i in used_exp or not _row_has_numeric_anchor(row, value_fields):
+            continue
+        exp_by_sig[make_key(row, value_fields, tol)].append(i)
+    for j, row in enumerate(pred_list):
+        if j in used_pred or not _row_has_numeric_anchor(row, value_fields):
+            continue
+        pred_by_sig[make_key(row, value_fields, tol)].append(j)
+
+    paired: List[Tuple[int, int]] = []
+    for sig, exp_idxs in exp_by_sig.items():
+        pred_idxs = pred_by_sig.get(sig) or []
+        n = min(len(exp_idxs), len(pred_idxs))
+        for k in range(n):
+            paired.append((exp_idxs[k], pred_idxs[k]))
+    return paired
+
+
+def _pair_by_period_and_product(
+    exp_rows: Sequence[Mapping[str, Any]],
+    pred_rows: Sequence[Mapping[str, Any]],
+    period_key_fields: Sequence[str],
+    tol: float,
+    value_fields: Optional[Sequence[str]] = None,
+) -> Tuple[List[Tuple[Dict[str, Any], Dict[str, Any]]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """同一报告期内先按产品名配对，剩余再按数值字段签名配对。"""
+    exp_by_period: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    pred_by_period: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+    for r in exp_rows:
+        exp_by_period[make_key(r, period_key_fields, tol)].append(dict(r))
+    for r in pred_rows:
+        pred_by_period[make_key(r, period_key_fields, tol)].append(dict(r))
+
+    value_fields = list(value_fields or [])
+    pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
+    unmatched_exp: List[Dict[str, Any]] = []
+    unmatched_pred: List[Dict[str, Any]] = []
+    for period in sorted(set(exp_by_period) | set(pred_by_period), key=str):
+        exp_list = list(exp_by_period.get(period, []))
+        pred_list = list(pred_by_period.get(period, []))
+        used_exp: set = set()
+        used_pred: set = set()
+        candidates: List[Tuple[int, int, int]] = []
+        for i, exp_row in enumerate(exp_list):
+            for j, pred_row in enumerate(pred_list):
+                score = _product_match_score(exp_row.get("PRODUCTNAME"), pred_row.get("PRODUCTNAME"))
+                if score >= 0:
+                    candidates.append((score, i, j))
+        for _score, i, j in sorted(candidates, key=lambda x: (-x[0], x[1], x[2])):
+            if i in used_exp or j in used_pred:
+                continue
+            used_exp.add(i)
+            used_pred.add(j)
+            pairs.append((exp_list[i], pred_list[j]))
+        for i, j in _pair_remaining_by_values(
+            exp_list, pred_list, used_exp, used_pred, value_fields, tol
+        ):
+            if i in used_exp or j in used_pred:
+                continue
+            used_exp.add(i)
+            used_pred.add(j)
+            pairs.append((exp_list[i], pred_list[j]))
+        unmatched_exp.extend(exp_list[i] for i in range(len(exp_list)) if i not in used_exp)
+        unmatched_pred.extend(pred_list[j] for j in range(len(pred_list)) if j not in used_pred)
+    return pairs, unmatched_exp, unmatched_pred
+
+
+def field_sig(v: Any, tol: float, field: str = "") -> Tuple[str, Any]:
     f = to_float(v)
     if f is not None:
+        # 数值按容差量化，避免 21885 / 21885.0 被当成不同 key
         step = max(tol, 1e-12)
         return ("n", round(f / step))
     if field == "PRODUCTNAME":
         return ("s", _norm_match_text(v))
+    # STARTDATE/REPORTDATE：旧 T16:00Z 与新 T00:00Z 都归一成业务日历日再比
     if field in _PERIOD_DATE_FIELDS:
         cal = _business_calendar_date(v)
         if cal:
@@ -368,34 +475,42 @@ def field_sig(v, tol, field=""):
     return ("s", norm(v))
 
 
-def make_key(row, fields, tol):
+def make_key(row: Mapping[str, Any], fields: Sequence[str], tol: float) -> Tuple[Tuple[str, Any], ...]:
     return tuple(field_sig(row.get(f), tol, f) for f in fields)
 
 
-def project_fields(row, fields):
+def project_fields(row: Mapping[str, Any], fields: Sequence[str]) -> Dict[str, Any]:
     return {f: row.get(f) for f in fields}
 
 
-def resolve_match_key_fields(schema, fields):
+def resolve_match_key_fields(schema: Mapping[str, Any], fields: Sequence[str]) -> List[str]:
+    """业务主键：同一公告内定位「哪条产品行」。"""
     raw = schema.get("match_key_fields")
     if raw:
         keys = [str(f).strip() for f in raw if str(f).strip()]
         bad = [f for f in keys if f not in fields]
         if bad:
-            raise ValueError(f"match_key_fields not in schema.fields: {bad}")
+            raise ValueError(f"match_key_fields 不在 schema.fields 中: {bad}")
         return keys
+    # 默认：报告期 + 产品名
     defaults = ["STARTDATE", "REPORTDATE", "PRODUCTNAME"]
     return [f for f in defaults if f in fields]
 
 
-def resolve_value_fields(fields, match_key_fields):
+def resolve_value_fields(fields: Sequence[str], match_key_fields: Sequence[str]) -> List[str]:
     return [f for f in fields if f not in match_key_fields]
 
 
-def diff_value_fields(expected, predicted, value_fields, tol):
-    diffs = []
+def diff_value_fields(
+    expected: Mapping[str, Any],
+    predicted: Mapping[str, Any],
+    value_fields: Sequence[str],
+    tol: float,
+) -> List[str]:
+    diffs: List[str] = []
     for f in value_fields:
         exp = expected.get(f)
+        # GT 未标注（null）不参与比对：新字段未填满时避免误伤 all_match
         if exp is None:
             continue
         if field_sig(exp, tol, f) != field_sig(predicted.get(f), tol, f):
@@ -403,7 +518,8 @@ def diff_value_fields(expected, predicted, value_fields, tol):
     return diffs
 
 
-def _parse_iso_dt(raw):
+def _parse_iso_dt(raw: Any) -> Optional[datetime]:
+    """解析为业务日历日的 UTC 零点（用于报告期先后比较，不用原始 UTC 瞬时）。"""
     cal = _business_calendar_date(raw)
     if not cal:
         return None
@@ -414,22 +530,38 @@ def _parse_iso_dt(raw):
         return None
 
 
-def _build_product_validator(task_dir, schema=None):
+def _build_product_validator(
+    task_dir: Path,
+    schema: Optional[Mapping[str, Any]] = None,
+) -> Optional[Callable[[str], bool]]:
+    """复用抽取模块的产品判定，供单向豁免过滤误抓行。"""
     try:
         mod = load_extractor(task_dir, schema)
         canon = getattr(mod, "_canonical_product", None)
         is_prod = getattr(mod, "_is_product", None)
         if not callable(canon) or not callable(is_prod):
             return None
-        def _valid(name):
+
+        def _valid(name: str) -> bool:
             cn = canon(name)
             return bool(cn) and cn != "合计" and bool(is_prod(cn))
+
         return _valid
     except Exception:
         return None
 
 
-def _should_forgive_extra_period(pred_row, pred_pn, period_key_fields, tol, gt_periods_by_product, gt_only_single_period, gt_latest_report_end, pred_to_gt_aliases=None):
+def _should_forgive_extra_period(
+    pred_row: Mapping[str, Any],
+    pred_pn: str,
+    period_key_fields: Sequence[str],
+    tol: float,
+    gt_periods_by_product: Mapping[str, set],
+    gt_only_single_period: bool,
+    gt_latest_report_end: Optional[datetime],
+    pred_to_gt_aliases: Optional[Mapping[str, set]] = None,
+) -> bool:
+    """单向豁免：GT 漏收的历史报告期（含比较年独有产品）。"""
     if not pred_pn or not period_key_fields:
         return False
     pred_period = make_key(pred_row, period_key_fields, tol)
@@ -438,10 +570,15 @@ def _should_forgive_extra_period(pred_row, pred_pn, period_key_fields, tol, gt_p
         compatible_gt.add(alias)
         compatible_gt.update(_compatible_gt_products(alias, gt_periods_by_product))
     if compatible_gt:
-        if any(pred_period in gt_periods_by_product.get(gt_pn, ()) for gt_pn in compatible_gt):
+        if any(
+            pred_period in gt_periods_by_product.get(gt_pn, ())
+            for gt_pn in compatible_gt
+        ):
             return False
+        # A. GT 已有兼容/别名产品名，只是多了历史期
         if any(gt_pn in gt_periods_by_product for gt_pn in compatible_gt):
             return True
+    # B. GT 仅收录单一报告期；合法产品的历史期（含当年停披露项）
     if not gt_only_single_period or gt_latest_report_end is None:
         return False
     pred_end = _parse_iso_dt(pred_row.get("REPORTDATE"))
@@ -453,25 +590,41 @@ def _should_forgive_extra_period(pred_row, pred_pn, period_key_fields, tol, gt_p
     return validator(pred_pn)
 
 
-def _gt_amounts_covered_by_pred(exp_rows, pred_rows, tol):
+_GT_AMOUNT_FIELDS = ("MBREVENUE", "MBCOST", "GROSS_PROFIT")
+
+
+def _gt_amounts_covered_by_pred(
+    exp_rows: Sequence[Mapping[str, Any]],
+    pred_rows: Sequence[Mapping[str, Any]],
+    tol: float,
+) -> bool:
+    """GT 每条 (MBREVENUE, MBCOST, GROSS_PROFIT) 都能在抽取里找到（按容差，多重集消耗）。"""
     if not exp_rows:
         return False
-    pool = Counter()
+    pool: Counter = Counter()
     for r in pred_rows:
-        if to_float(r.get("MBREVENUE")) is None:
+        amounts = tuple(to_float(r.get(f)) for f in _GT_AMOUNT_FIELDS)
+        if any(a is None for a in amounts):
             continue
-        pool[field_sig(r.get("MBREVENUE"), tol)] += 1
+        pool[tuple(field_sig(a, tol) for a in amounts)] += 1
     for r in exp_rows:
-        if to_float(r.get("MBREVENUE")) is None:
+        amounts = tuple(to_float(r.get(f)) for f in _GT_AMOUNT_FIELDS)
+        if any(a is None for a in amounts):
             return False
-        sig = field_sig(r.get("MBREVENUE"), tol)
+        sig = tuple(field_sig(a, tol) for a in amounts)
         if pool[sig] <= 0:
             return False
         pool[sig] -= 1
     return True
 
 
-def _should_forgive_gt_amount_subset(pipeline, exp_rows, pred_rows, tol):
+def _should_forgive_gt_amount_subset(
+    pipeline: Mapping[str, Any],
+    exp_rows: Sequence[Mapping[str, Any]],
+    pred_rows: Sequence[Mapping[str, Any]],
+    tol: float,
+) -> bool:
+    """单表抽取且 GT 金额均被覆盖 → 整篇评分豁免（名称/次轴多抓不罚）。"""
     raw = pipeline.get("selected_count")
     try:
         selected_count = int(raw)
@@ -484,68 +637,33 @@ def _should_forgive_gt_amount_subset(pipeline, exp_rows, pred_rows, tol):
     return _gt_amounts_covered_by_pred(exp_rows, pred_rows, tol)
 
 
-def _pair_remaining_by_values(exp_list, pred_list, used_exp, used_pred, value_fields, tol):
-    if not value_fields:
-        return []
-    exp_by_sig = defaultdict(list)
-    pred_by_sig = defaultdict(list)
-    for i, row in enumerate(exp_list):
-        if i in used_exp or not _row_has_numeric_anchor(row, value_fields):
-            continue
-        exp_by_sig[make_key(row, value_fields, tol)].append(i)
-    for j, row in enumerate(pred_list):
-        if j in used_pred or not _row_has_numeric_anchor(row, value_fields):
-            continue
-        pred_by_sig[make_key(row, value_fields, tol)].append(j)
-    paired = []
-    for sig, exp_idxs in exp_by_sig.items():
-        pred_idxs = pred_by_sig.get(sig) or []
-        n = min(len(exp_idxs), len(pred_idxs))
-        for k in range(n):
-            paired.append((exp_idxs[k], pred_idxs[k]))
-    return paired
+def compare_one(
+    predicted: Sequence[Mapping[str, Any]],
+    expected: Sequence[Mapping[str, Any]],
+    infocode: str,
+    schema: Mapping[str, Any],
+    pipeline: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    按 RELINFOCODE（infocode）逐公告对比：
+    - 少抓 missing：GT 有、预测无（业务主键未出现）
+    - 多抓 extra：预测有、GT 无
+    - 抓错 value_wrong：业务主键对上，但金额/币种等字段不一致
+    - 完全匹配 all_match：整行一致
 
+    产品名：同报告期内先按名称（含包含关系）配对；对不上时若数值字段
+    （收入/成本/币种/单位等）一致，仍视为匹配。
 
-def _pair_by_period_and_product(exp_rows, pred_rows, period_key_fields, tol, value_fields=None):
-    exp_by_period = defaultdict(list)
-    pred_by_period = defaultdict(list)
-    for r in exp_rows:
-        exp_by_period[make_key(r, period_key_fields, tol)].append(dict(r))
-    for r in pred_rows:
-        pred_by_period[make_key(r, period_key_fields, tol)].append(dict(r))
-    value_fields = list(value_fields or [])
-    pairs = []
-    unmatched_exp = []
-    unmatched_pred = []
-    for period in sorted(set(exp_by_period) | set(pred_by_period), key=str):
-        exp_list = list(exp_by_period.get(period, []))
-        pred_list = list(pred_by_period.get(period, []))
-        used_exp = set()
-        used_pred = set()
-        candidates = []
-        for i, exp_row in enumerate(exp_list):
-            for j, pred_row in enumerate(pred_list):
-                score = _product_match_score(exp_row.get("PRODUCTNAME"), pred_row.get("PRODUCTNAME"))
-                if score >= 0:
-                    candidates.append((score, i, j))
-        for _score, i, j in sorted(candidates, key=lambda x: (-x[0], x[1], x[2])):
-            if i in used_exp or j in used_pred:
-                continue
-            used_exp.add(i)
-            used_pred.add(j)
-            pairs.append((exp_list[i], pred_list[j]))
-        for i, j in _pair_remaining_by_values(exp_list, pred_list, used_exp, used_pred, value_fields, tol):
-            if i in used_exp or j in used_pred:
-                continue
-            used_exp.add(i)
-            used_pred.add(j)
-            pairs.append((exp_list[i], pred_list[j]))
-        unmatched_exp.extend(exp_list[i] for i in range(len(exp_list)) if i not in used_exp)
-        unmatched_pred.extend(pred_list[j] for j in range(len(pred_list)) if j not in used_pred)
-    return pairs, unmatched_exp, unmatched_pred
+    报告期单向豁免（不双向）：
+    应抓全报告期；若 GT 只收录最新期、预测多抓了历史期，不算 extra：
+      A) 同产品名（或已由数值配对确认的别名）已在 GT 中出现，仅多了历史期；
+      B) GT 仅单一报告期，且为合法产品的更早历史期（含比较年独有、当年停披露项）。
+    GT 有而预测没有的报告期，仍算 missing。
 
-
-def compare_one(predicted, expected, infocode, schema, pipeline=None):
+    GT 金额子集豁免：
+      pipeline.selected_count==1（定表来自单张表，非多表合并），且 GT 每条
+      (MBREVENUE, MBCOST, GROSS_PROFIT) 都能在抽取中找到 → 整篇视为完全匹配（名称差异/次轴多抓不罚）。
+    """
     fields = resolve_fields(schema)
     match_key_fields = resolve_match_key_fields(schema, fields)
     value_fields = resolve_value_fields(fields, match_key_fields)
@@ -558,11 +676,11 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
     missing = 0
     extra = 0
     value_wrong = 0
-    missing_items = []
-    extra_items = []
-    wrong_items = []
-    field_ok = Counter()
-    field_bad = Counter()
+    missing_items: List[Dict[str, Any]] = []
+    extra_items: List[Dict[str, Any]] = []
+    wrong_items: List[Dict[str, Any]] = []
+    field_ok: Counter = Counter()
+    field_bad: Counter = Counter()
 
     pipe = dict(pipeline or {})
     pipe_stage = str(pipe.get("stage") or ("success" if pred_rows else "empty_output"))
@@ -576,8 +694,8 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
             exp_rows, pred_rows, period_key_fields, tol, value_fields=value_fields
         )
     else:
-        exp_by_biz = defaultdict(list)
-        pred_by_biz = defaultdict(list)
+        exp_by_biz: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
+        pred_by_biz: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
         for r in exp_rows:
             exp_by_biz[make_key(r, match_key_fields, tol)].append(r)
         for r in pred_rows:
@@ -593,7 +711,8 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
             unmatched_exp.extend(exp_list[paired:])
             unmatched_pred.extend(pred_list[paired:])
 
-    pred_to_gt_aliases = defaultdict(set)
+    # 数值配对产生的产品名别名：历史期豁免时按别名回查 GT
+    pred_to_gt_aliases: Dict[str, set] = defaultdict(set)
     for exp_row, pred_row in row_pairs:
         exp_pn = norm(exp_row.get("PRODUCTNAME", ""))
         pred_pn = norm(pred_row.get("PRODUCTNAME", ""))
@@ -646,9 +765,15 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
             "predicted": project_fields(pred_row, fields),
         })
 
-    gt_periods_by_product = defaultdict(set)
-    gt_period_keys = set()
-    gt_report_ends = []
+    # ---------- 单向豁免：仅「多抓历史报告期」----------
+    # 口径：应抓全报告期；GT 有时只收录最新期。
+    #   - A) 同产品名、报告期不在 GT 中 → 不算 extra
+    #   - B) GT 仅单一报告期 + 合法产品更早历史期（含比较年独有产品）→ 不算 extra
+    #   - GT 有而 pred 没有的报告期 → 仍算 missing（不双向豁免）
+    #   - 不把豁免行计入 all_match，避免 all_match > db_count
+    gt_periods_by_product: Dict[str, set] = defaultdict(set)
+    gt_period_keys: set = set()
+    gt_report_ends: List[datetime] = []
     for r in exp_rows:
         pn = norm(r.get("PRODUCTNAME", ""))
         if not pn or not period_key_fields:
@@ -663,14 +788,19 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
     gt_latest_report_end = max(gt_report_ends) if gt_report_ends else None
 
     forgiven_extra = 0
-    forgiven_extra_items = []
-    _real_extra = []
+    forgiven_extra_items: List[Dict[str, Any]] = []
+    _real_extra: List[Dict[str, Any]] = []
     for item in extra_items:
         pred_row = item.get("predicted") or {}
         pred_pn = norm(pred_row.get("PRODUCTNAME", ""))
         if _should_forgive_extra_period(
-            pred_row, pred_pn, period_key_fields, tol,
-            gt_periods_by_product, gt_only_single_period, gt_latest_report_end,
+            pred_row,
+            pred_pn,
+            period_key_fields,
+            tol,
+            gt_periods_by_product,
+            gt_only_single_period,
+            gt_latest_report_end,
             pred_to_gt_aliases=pred_to_gt_aliases,
         ):
             forgiven_extra += 1
@@ -684,9 +814,12 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
 
     db_n, local_n = len(exp_rows), len(pred_rows)
     forgiven_gt_amount_subset = 0
-    forgiven_subset_items = []
-    if ((missing > 0 or extra > 0 or value_wrong > 0)
-            and _should_forgive_gt_amount_subset(pipe, exp_rows, pred_rows, tol)):
+    forgiven_subset_items: List[Dict[str, Any]] = []
+    # ---------- 整篇豁免：单表 + GT 金额均被抽取覆盖 ----------
+    if (
+        (missing > 0 or extra > 0 or value_wrong > 0)
+        and _should_forgive_gt_amount_subset(pipe, exp_rows, pred_rows, tol)
+    ):
         forgiven_gt_amount_subset = 1
         for item in missing_items:
             fi = dict(item)
@@ -712,34 +845,37 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
         field_ok = Counter({f: db_n for f in value_fields})
         field_bad = Counter()
 
+    # 豁免的历史期 / 金额子集多抓不参与 precision / comprehensive_hit 分母
     scored_local_n = max(local_n - forgiven_extra, 0)
     if forgiven_gt_amount_subset:
         scored_local_n = db_n
     if missing == 0 and extra == 0 and value_wrong == 0:
         status = "完全匹配"
     else:
-        parts = []
+        parts: List[str] = []
         if missing:
-            parts.append(f"missing {missing}")
+            parts.append(f"少抓{missing}")
         if extra:
-            parts.append(f"extra {extra}")
+            parts.append(f"多抓{extra}")
         if value_wrong:
-            parts.append(f"wrong {value_wrong}")
+            parts.append(f"抓错{value_wrong}")
         status = " / ".join(parts)
 
     field_acc = {}
     for f in value_fields:
         ok, bad = int(field_ok[f]), int(field_bad[f])
         field_acc[f] = {
-            "ok": ok, "mismatch": bad,
+            "ok": ok,
+            "mismatch": bad,
             "accuracy": ok / (ok + bad) if (ok + bad) else 0.0,
         }
     field_acc["__record__"] = {
-        "ok": matched, "mismatch": value_wrong,
+        "ok": matched,
+        "mismatch": value_wrong,
         "accuracy": matched / (matched + value_wrong) if (matched + value_wrong) else 0.0,
     }
 
-    root_cause = {}
+    root_cause: Dict[str, int] = {}
     if zero_output and missing:
         root_cause[pipe_stage if pipe_stage != "success" else "empty_output"] = missing
     elif missing:
@@ -749,10 +885,20 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
     if extra:
         root_cause["extra"] = extra
 
+    # 文档质量分类：区分自然匹配、豁免后匹配、有真实问题
+    if status == "完全匹配":
+        if forgiven_extra == 0 and forgiven_gt_amount_subset == 0:
+            doc_category = "完全匹配"
+        else:
+            doc_category = "豁免后匹配"
+    else:
+        doc_category = "需修复"
+
     return {
         "infocode": infocode,
         "relinfocode": infocode,
         "status": status,
+        "doc_category": doc_category,
         "pipeline": pipe,
         "stats": {
             "db_count": db_n,
@@ -782,7 +928,7 @@ def compare_one(predicted, expected, infocode, schema, pipeline=None):
     }
 
 
-def aggregate(docs):
+def aggregate(docs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     db = sum(d["stats"]["db_count"] for d in docs)
     local = sum(d["stats"]["local_count"] for d in docs)
     matched = sum(d["stats"]["all_match"] for d in docs)
@@ -790,12 +936,21 @@ def aggregate(docs):
     extra = sum(d["stats"]["extra"] for d in docs)
     value_diff = sum(d["stats"]["value_diff"] for d in docs)
     forgiven_extra = sum(int((d["stats"] or {}).get("forgiven_extra_periods") or 0) for d in docs)
-    forgiven_subset_docs = sum(1 for d in docs if int((d.get("stats") or {}).get("forgiven_gt_amount_subset") or 0) > 0)
+    forgiven_subset_docs = sum(
+        1 for d in docs if int((d.get("stats") or {}).get("forgiven_gt_amount_subset") or 0) > 0
+    )
     match_ok = sum(d["stats"]["match_no_value_diff"] for d in docs)
-    roots = Counter()
-    field_ok = Counter()
-    field_bad = Counter()
-    pipeline_stages = Counter()
+    roots: Counter = Counter()
+    field_ok: Counter = Counter()
+    field_bad: Counter = Counter()
+    pipeline_stages: Counter = Counter()
+    doc_categories: Counter = Counter()
+    # 问题子类：按首要问题分类
+    empty_output_docs = 0
+    pure_missing_docs = 0
+    pure_extra_docs = 0
+    pure_value_wrong_docs = 0
+    mixed_problem_docs = 0
     for d in docs:
         roots.update(d["stats"].get("missing_root_cause") or {})
         p = d.get("pipeline") or {}
@@ -805,36 +960,70 @@ def aggregate(docs):
                 continue
             field_ok[f] += int(s.get("ok", 0))
             field_bad[f] += int(s.get("mismatch", 0))
+        # 文档分类
+        cat = str(d.get("doc_category") or "需修复")
+        doc_categories[cat] += 1
+        if cat == "需修复":
+            s = d.get("stats") or {}
+            m, e, v = int(s.get("missing") or 0), int(s.get("extra") or 0), int(s.get("value_diff") or 0)
+            if s.get("local_count", 0) == 0 or str(p.get("stage") or "") == "empty_output":
+                empty_output_docs += 1
+            elif m > 0 and e == 0 and v == 0:
+                pure_missing_docs += 1
+            elif m == 0 and e > 0 and v == 0:
+                pure_extra_docs += 1
+            elif m == 0 and e == 0 and v > 0:
+                pure_value_wrong_docs += 1
+            else:
+                mixed_problem_docs += 1
+
     detail = {
         "__record__": {
-            "ok": match_ok, "mismatch": value_diff,
+            "ok": match_ok,
+            "mismatch": value_diff,
             "accuracy": match_ok / (match_ok + value_diff) if (match_ok + value_diff) else 0.0,
         }
     }
     for f in sorted(set(field_ok) | set(field_bad)):
         ok, bad = int(field_ok[f]), int(field_bad[f])
         detail[f] = {"ok": ok, "mismatch": bad, "accuracy": ok / (ok + bad) if (ok + bad) else 0.0}
+
+    # 有效抽取行数：排除已豁免的历史期行
+    effective_local = local - forgiven_extra
     return {
         "doc_count": len(docs),
-        "perfect_docs": sum(1 for d in docs if d.get("status") == "完全匹配"),
+        # 三层文档分类
+        "natural_perfect_docs": int(doc_categories.get("完全匹配", 0)),
+        "exempted_perfect_docs": int(doc_categories.get("豁免后匹配", 0)),
+        "perfect_docs": int(doc_categories.get("完全匹配", 0)) + int(doc_categories.get("豁免后匹配", 0)),
+        "problem_docs": int(doc_categories.get("需修复", 0)),
+        # 问题子类（仅需修复文档）
+        "empty_output_docs": empty_output_docs,
+        "pure_missing_docs": pure_missing_docs,
+        "pure_extra_docs": pure_extra_docs,
+        "pure_value_wrong_docs": pure_value_wrong_docs,
+        "mixed_problem_docs": mixed_problem_docs,
         "forgiven_docs": sum(
-            1 for d in docs
+            1
+            for d in docs
             if int((d.get("stats") or {}).get("forgiven_extra_periods") or 0) > 0
             or int((d.get("stats") or {}).get("forgiven_gt_amount_subset") or 0) > 0
         ),
         "forgiven_gt_amount_subset_docs": forgiven_subset_docs,
         "db_count": db,
         "local_count": local,
+        "effective_local": effective_local,
         "all_match": matched,
         "missing": missing,
         "extra": extra,
         "value_diff": value_diff,
         "forgiven_extra_periods": forgiven_extra,
+        # 修正后的指标
         "recall": matched / db if db else 0.0,
-        "precision": matched / local if local else 0.0,
+        "precision": matched / effective_local if effective_local else 0.0,
         "field_accuracy": match_ok / (match_ok + value_diff) if (match_ok + value_diff) else 0.0,
-        "comprehensive_hit": matched / max(db, local, 1),
-        "biz_hit": sum(d["stats"].get("biz_hit", 0) for d in docs) / len(docs) if docs else 0.0,
+        "comprehensive_hit": matched / max(db, effective_local, 1),
+        "biz_hit": (matched + value_diff) / db if db else 0.0,
         "missing_root_cause": dict(roots),
         "pipeline_stages": dict(pipeline_stages),
         "field_accuracy_detail": detail,
@@ -844,42 +1033,50 @@ def aggregate(docs):
 # ---------- html ----------
 
 ROOT_CAUSE_DESC = {
-    "locate_fail": "locate fail: target chapter/cluster not found",
-    "parse_fail": "parse fail: block extraction failed after locate",
-    "select_fail": "select fail: table selection returned empty after blocks found",
-    "format_fail": "format fail: table formed but rows filtered out",
-    "empty_output": "empty output: baseline returned 0 rows (stage not reported)",
-    "exception": "exception: extract_init raised error or status=failed",
-    "unknown": "unknown: cannot determine failure stage",
-    "missing": "partial missing: GT row not output",
-    "value_wrong": "value wrong: row matched but fields differ",
-    "extra": "extra: predicted but not in GT",
-    "forgiven_gt_amount_subset": "forgiven: single-table extract, GT amounts fully covered",
-    "no_extract": "no output (old tag, see pipeline stage)",
+    "locate_fail": "定位失败：未找到目标章节/cluster",
+    "parse_fail": "解析失败：已定位但 extract 未产出 block",
+    "select_fail": "成表失败：有 block 但 select 择优后为空",
+    "format_fail": "格式化失败：已成表但输出行被过滤",
+    "empty_output": "无输出：baseline 返回 0 行（阶段未上报）",
+    "exception": "运行异常：extract_init 抛错或 status=failed",
+    "unknown": "未知：未能判断失败阶段",
+    "missing": "部分少抓：有输出但 GT 行未出现",
+    "value_wrong": "抓错：产品行定位对了，字段值不一致",
+    "extra": "多抓：预测有，GT 无",
+    "forgiven_gt_amount_subset": "豁免：单表抽取且 GT 金额均被覆盖",
+    # 兼容旧批次
+    "no_extract": "无输出（旧标签，见 pipeline 阶段）",
 }
+
 
 PIPELINE_STAGE_DESC = {
-    "success": "success",
-    "locate_fail": "locate fail",
-    "parse_fail": "parse fail",
-    "select_fail": "select fail",
-    "format_fail": "format fail",
-    "empty_output": "empty output",
-    "exception": "exception",
-    "unknown": "unknown",
+    "success": "成功：定位→解析→成表→输出均完成",
+    "locate_fail": "定位失败",
+    "parse_fail": "解析失败",
+    "select_fail": "成表失败",
+    "format_fail": "格式化失败",
+    "empty_output": "无输出",
+    "exception": "运行异常",
+    "unknown": "未知",
+}
+
+_STATUS_ROW_META = {
+    "missing": ("少抓", "row-miss", "bad"),
+    "extra": ("多抓", "row-extra", "warn"),
+    "value_wrong": ("字段不一致", "row-wrong", "warn"),
 }
 
 
-def _root_cause_label(code):
+def _root_cause_label(code: str) -> str:
     return ROOT_CAUSE_DESC.get(code, code)
 
 
-def _pipeline_label(stage):
+def _pipeline_label(stage: str) -> str:
     label = PIPELINE_STAGE_DESC.get(stage, stage)
-    return f"{stage} — {label}" if stage not in PIPELINE_STAGE_DESC else f"{stage} ({label})"
+    return f"{stage} — {label}" if stage not in PIPELINE_STAGE_DESC else f"{stage}（{label}）"
 
 
-def _source_pages_label(pipeline):
+def _source_pages_label(pipeline: Mapping[str, Any]) -> str:
     pages = pipeline.get("source_pages") if pipeline else None
     if not pages:
         return "—"
@@ -888,27 +1085,32 @@ def _source_pages_label(pipeline):
     return str(pages)
 
 
-def _pct(x):
+def _pct(x: float) -> str:
     return f"{float(x) * 100:.2f}%"
 
 
-def _esc(x):
+def _esc(x: Any) -> str:
     return html.escape("" if x is None else str(x))
 
 
-def _badge(status):
+def _badge(status: str) -> str:
     cls = "ok" if status == "完全匹配" else "bad"
     return f"<span class='badge {cls}' title='{_esc(status)}'>{_esc(status)}</span>"
 
 
-def _link(infocode, url, label=""):
+def _badge_kind(label: str, kind: str) -> str:
+    return f"<span class='badge {kind}'>{_esc(label)}</span>"
+
+
+def _link(infocode: str, url: str, label: str = "") -> str:
     text = _esc(label or infocode)
     if not url:
         return f"<span class='mono'>{text}</span>"
     return f"<a class='pdf-link' href='{_esc(url)}' target='_blank' rel='noopener'>{text}</a>"
 
 
-def _fmt_cell(v):
+def _fmt_cell(v: Any) -> str:
+    """报告展示：日期压成 YYYY-MM-DD，空值用 —。"""
     if v is None:
         return "—"
     if isinstance(v, bool):
@@ -922,20 +1124,22 @@ def _fmt_cell(v):
     s = str(v).strip()
     if not s or s.lower() in {"none", "null", "nan"}:
         return "—"
+    # 期间/ISO：按业务日历日展示（2023-12-31T16:00:00Z → 2024-01-01）
     cal = _business_calendar_date(s)
     if cal is not None and ("T" in s or "Z" in s or "+" in s[10:] or len(s) == 10):
         return cal
     return s
 
 
-def _doc_has_problems(doc):
+def _doc_has_problems(doc: Mapping[str, Any]) -> bool:
     s = doc.get("stats") or {}
     return bool(int(s.get("missing") or 0) or int(s.get("extra") or 0) or int(s.get("value_diff") or 0))
 
 
-def _render_items_table(items, fields, caption):
+def _render_items_table(items: Sequence[Mapping[str, Any]], fields: Sequence[str], caption: str) -> str:
+    """纯列表：只展示字段值，不做差异高亮/多少抓标记。"""
     heads = "".join(f"<th>{_esc(f)}</th>" for f in fields)
-    body_rows = []
+    body_rows: List[str] = []
     for rec in items:
         tds = "".join(f"<td class='mono'>{_esc(_fmt_cell(rec.get(f)))}</td>" for f in fields)
         body_rows.append(f"<tr>{tds}</tr>")
@@ -950,8 +1154,9 @@ def _render_items_table(items, fields, caption):
     )
 
 
-def _render_doc_side_lists(doc, schema):
+def _render_doc_side_lists(doc: Mapping[str, Any], schema: Mapping[str, Any]) -> str:
     fields = resolve_fields(schema)
+    # 展示顺序：产品名 / 期间 / 金额等
     preferred = [
         "PRODUCTNAME", "STARTDATE", "REPORTDATE",
         "MBREVENUE", "MBCOST", "GROSS_PROFIT", "CURRENCY", "UNIT",
@@ -963,17 +1168,21 @@ def _render_doc_side_lists(doc, schema):
     return (
         "<div class='side-by-side'>"
         f"{_render_items_table(gt_items, show_fields, 'GT')}"
-        f"{_render_items_table(ex_items, show_fields, 'extract')}"
+        f"{_render_items_table(ex_items, show_fields, '抽取')}"
         "</div>"
     )
 
 
-def _render_problem_docs(docs, schema, url_of):
+def _render_problem_docs(
+    docs: Sequence[Mapping[str, Any]],
+    schema: Mapping[str, Any],
+    url_of,
+) -> str:
+    cards: List[str] = []
     problem_docs = [d for d in docs if _doc_has_problems(d)]
     if not problem_docs:
-        return "<div class='card'>All docs matched。</div>"
+        return "<div class='card'>全部公告完全匹配。</div>"
 
-    cards = []
     for d in problem_docs:
         ic = str(d.get("infocode") or "")
         u = url_of(d)
@@ -982,8 +1191,8 @@ def _render_problem_docs(docs, schema, url_of):
         extract_items = list(d.get("extract_items") or [])
         meta_line = (
             f"<div class='doc-meta'>"
-            f"<span>source page: <strong>{_esc(pages)}</strong></span>"
-            f"<span>extract rows: <strong>{len(extract_items)}</strong></span>"
+            f"<span>抓取页：<strong>{_esc(pages)}</strong></span>"
+            f"<span>抽取行：<strong>{len(extract_items)}</strong></span>"
             f"</div>"
         )
         accept_btn = ""
@@ -991,32 +1200,32 @@ def _render_problem_docs(docs, schema, url_of):
             accept_btn = (
                 f"<button type='button' class='btn-accept' "
                 f"onclick='acceptGt({json.dumps(ic, ensure_ascii=False)}, this)'>"
-                f"accept as GT</button>"
+                f"采纳为 GT</button>"
             )
         cards.append(
             f"<div class='card doc-card' id='doc-{_esc(ic)}'>"
             f"<div class='doc-head'>"
             f"<h3 class='mono'>{_esc(ic)}</h3>"
-            f"<div class='doc-actions'>{_link(ic, u, 'open PDF')}{accept_btn}</div>"
+            f"<div class='doc-actions'>{_link(ic, u, '打开PDF')}{accept_btn}</div>"
             f"</div>{meta_line}{_render_doc_side_lists(d, schema)}</div>"
         )
     hint = (
         "<div class='accept-bar'>"
-        "<p class='muted' style='margin:0'>open report via local server (auto-started after batch run). "
-        "review extract results in the right panel and click accept as GT, "
-        "this overwrites the doc in <code>tasks/.../ground_truth.json</code>."
+        "<p class='muted' style='margin:0'>请通过本地服务打开本报告（跑批结束会自动启动）。"
+        "核对右侧抽取后点「采纳为 GT」，会直接覆盖 "
+        "<code>tasks/&lt;task&gt;/ground_truth.json</code> 中该公告整表。"
         "</p>"
         "</div>"
     )
     summary = (
-        f"<p class='muted'>showing GT vs extract for each doc with differences, "
-        f"<strong>{len(problem_docs)}</strong> docs.</p>{hint}"
+        f"<p class='muted'>下列公告分别列出 GT 与抽取全量行（不做差异标记），共 "
+        f"<strong>{len(problem_docs)}</strong> 篇。</p>{hint}"
     )
     return summary + "".join(cards)
 
 
-def render_html(meta, agg, docs, schema):
-    title = schema.get("title") or "PDF Baseline Report"
+def render_html(meta: Mapping[str, Any], agg: Mapping[str, Any], docs: Sequence[Mapping[str, Any]], schema: Mapping[str, Any]) -> str:
+    title = schema.get("title") or "PDF Baseline 跑批报告"
 
     def url_of(doc):
         if doc.get("pdf_url"):
@@ -1027,7 +1236,7 @@ def render_html(meta, agg, docs, schema):
     detail = agg.get("field_accuracy_detail") or {}
     rec = detail.get("__record__", {})
     field_rows = [
-        f"<tr><td><strong>Record-level all-fields</strong></td><td>{rec.get('ok',0)}</td>"
+        f"<tr><td><strong>记录级全字段</strong></td><td>{rec.get('ok',0)}</td>"
         f"<td>{rec.get('mismatch',0)}</td><td><strong>{_pct(rec.get('accuracy',0))}</strong></td></tr>"
     ]
     for f, s in detail.items():
@@ -1040,19 +1249,33 @@ def render_html(meta, agg, docs, schema):
     root_rows = [
         f"<tr><td class='mono'>{_esc(k)}</td><td>{v}</td><td>{_esc(_root_cause_label(k))}</td></tr>"
         for k, v in sorted((agg.get("missing_root_cause") or {}).items(), key=lambda x: -x[1])
-    ] or ["<tr><td colspan='3'>none</td></tr>"]
+    ] or ["<tr><td colspan='3'>无缺失/抓错</td></tr>"]
 
     pipe_rows = [
         f"<tr><td class='mono'>{_esc(k)}</td><td>{v}</td><td>{_esc(PIPELINE_STAGE_DESC.get(k, k))}</td></tr>"
         for k, v in sorted((agg.get("pipeline_stages") or {}).items(), key=lambda x: -x[1])
-    ] or ["<tr><td colspan='3'>none</td></tr>"]
+    ] or ["<tr><td colspan='3'>无</td></tr>"]
 
-    problem_n = sum(1 for d in docs if _doc_has_problems(d))
+    problem_n = int(agg.get("problem_docs") or 0)
     task_name = str(meta.get("task") or "").strip()
     run_dir = str(meta.get("run_dir") or "").strip()
     compare_body = _render_problem_docs(docs, schema, url_of)
 
-    def section(name, body, open_=True, section_id=""):
+    # 问题子类统计行（按首要问题分类）
+    problem_sub_lines = (
+        f"<tr><td>抽取为空 (empty_output)</td><td>{agg.get('empty_output_docs',0)}</td>"
+        f"<td>pipeline 定位/解析失败，无任何输出</td></tr>"
+        f"<tr><td>纯抓错 (值不一致)</td><td>{agg.get('pure_value_wrong_docs',0)}</td>"
+        f"<td>产品+期间定位正确，但 CURRENCY/GROSS_PROFIT 等字段值不一致</td></tr>"
+        f"<tr><td>纯少抓 (漏产品行)</td><td>{agg.get('pure_missing_docs',0)}</td>"
+        f"<td>抽取输出不完整，GT 有但抽取无</td></tr>"
+        f"<tr><td>纯多抓 (多出非GT产品)</td><td>{agg.get('pure_extra_docs',0)}</td>"
+        f"<td>抽取多出行，GT 中无对应产品</td></tr>"
+        f"<tr><td>混合问题</td><td>{agg.get('mixed_problem_docs',0)}</td>"
+        f"<td>同时存在少抓+多抓+抓错中的多种</td></tr>"
+    )
+
+    def section(name: str, body: str, open_: bool = True, section_id: str = "") -> str:
         opened = " open" if open_ else ""
         id_attr = f" id='{_esc(section_id)}'" if section_id else ""
         return (
@@ -1112,12 +1335,12 @@ window.__RUN_DIR__ = {json.dumps(run_dir, ensure_ascii=False)};
 async function acceptGt(infocode, btn) {{
   if (!infocode) return;
   if (location.protocol === 'file:') {{
-    alert('open report via local server (auto-started after batch run), do not double-click HTML directly.');
+    alert('请用本地服务打开报告（跑批结束会自动启动），不要直接双击 HTML。');
     return;
   }}
   const task = window.__TASK__ || '';
-  if (!task) {{ alert('report missing task name'); return; }}
-  if (btn) {{ btn.disabled = true; btn.textContent = 'accepting...'; }}
+  if (!task) {{ alert('报告缺少 task 名'); return; }}
+  if (btn) {{ btn.disabled = true; btn.textContent = '采纳中…'; }}
   try {{
     const resp = await fetch('/api/accept-gt', {{
       method: 'POST',
@@ -1128,32 +1351,44 @@ async function acceptGt(infocode, btn) {{
     if (!resp.ok || !data.ok) {{
       throw new Error(data.error || ('HTTP ' + resp.status));
     }}
-    if (btn) {{ btn.textContent = 'accepted'; }}
-    alert('GT written: ' + infocode + ' (' + (data.row_count || 0) + ' rows)');
+    if (btn) {{ btn.textContent = '已采纳'; }}
+    alert('已写入 GT：' + infocode + '（' + (data.row_count || 0) + ' 行）');
   }} catch (e) {{
-    if (btn) {{ btn.disabled = false; btn.textContent = 'accept as GT'; }}
-    alert('accept failed: ' + (e && e.message ? e.message : e));
+    if (btn) {{ btn.disabled = false; btn.textContent = '采纳为 GT'; }}
+    alert('采纳失败：' + (e && e.message ? e.message : e));
   }}
 }}
 </script>
 </head><body>
 <h1>{_esc(title)}</h1>
-<p>batch ID: <strong>{_esc(meta.get('batch_id'))}</strong> | generated: {_esc(meta.get('generated_at'))} | PDF count: {meta.get('pdf_count')} | evaluated: {agg.get('doc_count')} | problems: {problem_n}</p>
+<p>批次 ID：<strong>{_esc(meta.get('batch_id'))}</strong> | 生成时间：{_esc(meta.get('generated_at'))} | PDF：{meta.get('pdf_count')} | 评估：{agg.get('doc_count')}</p>
 <div class="kpi-grid card">
-  <div class="kpi"><div>Recall</div><div class="value">{_pct(agg.get('recall',0))}</div></div>
-  <div class="kpi"><div>Precision</div><div class="value">{_pct(agg.get('precision',0))}</div></div>
-  <div class="kpi"><div>Field Accuracy</div><div class="value">{_pct(agg.get('field_accuracy',0))}</div></div>
-  <div class="kpi"><div>Comprehensive Hit</div><div class="value">{_pct(agg.get('comprehensive_hit',0))}</div></div>
-  <div class="kpi"><div>Missing</div><div class="value">{int(agg.get('missing',0))}</div></div>
-  <div class="kpi"><div>Extra</div><div class="value">{int(agg.get('extra',0))}</div></div>
-  <div class="kpi"><div>Wrong</div><div class="value">{int(agg.get('value_diff',0))}</div></div>
-  <div class="kpi"><div>Perfect Docs</div><div class="value">{int(agg.get('perfect_docs',0))}</div></div>
+  <div class="kpi"><div>自然完全匹配</div><div class="value" style="color:#059669">{int(agg.get('natural_perfect_docs',0))}</div></div>
+  <div class="kpi"><div>豁免后匹配</div><div class="value" style="color:#0891b2">{int(agg.get('exempted_perfect_docs',0))}</div></div>
+  <div class="kpi"><div>需修复文档</div><div class="value" style="color:#dc2626">{int(agg.get('problem_docs',0))}</div></div>
+  <div class="kpi"><div>定位率 Biz Hit</div><div class="value">{_pct(agg.get('biz_hit',0))}</div></div>
+  <div class="kpi"><div>Recall (GT覆盖率)</div><div class="value">{_pct(agg.get('recall',0))}</div></div>
+  <div class="kpi"><div>Precision (修正后)</div><div class="value">{_pct(agg.get('precision',0))}</div></div>
+  <div class="kpi"><div>豁免历史期行数</div><div class="value" style="font-size:1.2rem">{int(agg.get('forgiven_extra_periods',0))}</div></div>
+  <div class="kpi"><div>少抓 / 多抓 / 抓错</div><div class="value" style="font-size:1.2rem">{int(agg.get('missing',0))} / {int(agg.get('extra',0))} / {int(agg.get('value_diff',0))}</div></div>
 </div>
-{section("Field Accuracy", f"<div class='card'><table><tr><th>Field</th><th>OK</th><th>Mismatch</th><th>Accuracy</th></tr>{''.join(field_rows)}</table></div>", open_=False)}
-{section("Pipeline Stages (per doc)", f"<div class='card'><table><tr><th>Stage</th><th>Docs</th><th>Description</th></tr>{''.join(pipe_rows)}</table></div>", open_=False)}
-{section("Difference Root Cause (per GT row)", f"<div class='card'><table><tr><th>Root Cause</th><th>Rows</th><th>Description</th></tr>{''.join(root_rows)}</table></div>", open_=False)}
-{section(f"Per-Doc Comparison (GT / Extract side-by-side · {problem_n})", compare_body, open_=True, section_id="compare-section")}
+<div class="card" style="margin-bottom:16px">
+    <p style="margin:0 0 8px"><strong>说明：</strong></p>
+    <ul style="margin:0;padding-left:20px;color:#4b5563;font-size:.86rem">
+      <li><strong>自然完全匹配</strong>：GT 与抽取完全一致，无豁免，无需关注</li>
+      <li><strong>豁免后匹配</strong>：仅因 GT 少标历史报告期而产生的差异被豁免，无需关注</li>
+      <li><strong>需修复</strong>：豁免后仍存在少抓/多抓/抓错，需要排查抽取逻辑</li>
+      <li><strong>定位率 Biz Hit</strong> = (完全匹配 + 抓错) / GT总行数 → 产品+期间定位的成功率（值不对但行定位对了也算）</li>
+      <li><strong>Precision (修正后)</strong> = 完全匹配行 / (抽取总行 − 豁免历史期行) → 排除已知GT标注不足后的精确率</li>
+    </ul>
+  </div>
+{section("字段准确率", f"<div class='card'><table><tr><th>字段</th><th>一致</th><th>不一致</th><th>准确率</th></tr>{''.join(field_rows)}</table></div>", open_=False)}
+{section("抽取管道阶段（按公告）", f"<div class='card'><table><tr><th>阶段</th><th>公告数</th><th>说明</th></tr>{''.join(pipe_rows)}</table><p class='muted'>定位→解析→成表(select)→格式化；零输出时 missing 根因会继承该阶段。</p></div>", open_=False)}
+{section("差异根因（按 GT 行）", f"<div class='card'><table><tr><th>根因</th><th>行数</th><th>说明</th></tr>{''.join(root_rows)}</table></div>", open_=False)}
+{section(f"需修复文档分类（按首要问题 · {problem_n} 篇）", f"<div class='card'><table><tr><th>首要问题</th><th>文档数</th><th>建议排查方向</th></tr>{problem_sub_lines}</table></div>", open_=True, section_id="problem-categories")}
+{section(f"逐公告对照（GT / 抽取并列 · {problem_n} 篇）", compare_body, open_=True, section_id="compare-section")}
 </body></html>"""
+
 
 
 # ---------- run ----------
@@ -1161,10 +1396,20 @@ async function acceptGt(infocode, btn) {{
 _WORKER_BASELINE = None
 
 
-def _init_worker(task_dir_str):
+def _init_worker(task_dir: str) -> None:
+    """每个进程各自加载抽取模块（互不抢 GIL）。"""
     global _WORKER_BASELINE, _COMPARE_PRODUCT_VALIDATOR
+    # Windows spawn workers re-import cold; neutralize optional heavy deps.
     import sys
     import types
+
+    try:
+        import numpy as _np
+
+        if not hasattr(_np, "NaN"):
+            _np.NaN = _np.nan
+    except Exception:
+        pass
 
     def _ensure(name, **attrs):
         if name not in sys.modules:
@@ -1174,18 +1419,11 @@ def _init_worker(task_dir_str):
             setattr(m, k, v)
         return m
 
-    try:
-        import numpy as _np
-        if not hasattr(_np, "NaN"):
-            _np.NaN = _np.nan
-    except Exception:
-        pass
-
     _ensure("arelle", _version="stub")
     _ensure("arelle.WebCache", WebCache=type("WebCache", (), {}))
     if "main.app" not in sys.modules:
         _ensure("main")
-        _ensure("main.app", get_abs_main_resources_directory=lambda: str(Path(__file__).resolve().parent))
+        _ensure("main.app", get_abs_main_resources_directory=lambda: str(Path(__file__).resolve().parents[3]))
         _ensure("main.init", init_logger_config=lambda *a, **k: None)
         _ensure(
             "processor.task_management_handler",
@@ -1193,26 +1431,32 @@ def _init_worker(task_dir_str):
             init_start_consume_queue=lambda *a, **k: None,
             init_parsing_task_current_concurrency=lambda *a, **k: None,
         )
-    task_path = Path(task_dir_str)
+    task_path = Path(task_dir)
     schema = load_schema(task_path)
     _WORKER_BASELINE = load_extractor(task_path, schema)
     _COMPARE_PRODUCT_VALIDATOR = _build_product_validator(task_path, schema)
 
 
-def _run_one_job(job, extract_configs):
+def _run_one_job(
+    job: Mapping[str, str],
+    extract_configs: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """执行单份公告 extract_init。"""
     code = str(job["infocode"])
     pdf_path = str(job["pdf_path"])
     pdf_url = str(job.get("pdf_url") or pdf_path)
     try:
         if _WORKER_BASELINE is None:
-            raise RuntimeError("worker not initialized")
+            raise RuntimeError("worker 未初始化 baseline")
         result = _WORKER_BASELINE.extract_init(
-            pdf_path, code, "backtest",
+            pdf_path,
+            code,
+            "backtest",
             configs=dict(extract_configs),
             task_info_list=None,
         )
         if not isinstance(result, dict):
-            raise TypeError("extract_init must return dict")
+            raise TypeError("extract_init 必须返回 dict")
         return {
             "infocode": code,
             "pdf_path": pdf_path,
@@ -1221,7 +1465,7 @@ def _run_one_job(job, extract_configs):
             "error": "",
             "traceback": "",
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {
             "infocode": code,
             "pdf_path": pdf_path,
@@ -1237,18 +1481,28 @@ def _run_one_job(job, extract_configs):
         }
 
 
-def _chunk_jobs(jobs, n):
+def _chunk_jobs(jobs: Sequence[Dict[str, str]], n: int) -> List[List[Dict[str, str]]]:
+    """先均分公告：轮询分到 n 份，空份丢掉。"""
     n = max(1, min(int(n), len(jobs)))
-    chunks = [[] for _ in range(n)]
+    chunks: List[List[Dict[str, str]]] = [[] for _ in range(n)]
     for i, job in enumerate(jobs):
         chunks[i % n].append(job)
     return [c for c in chunks if c]
 
 
-def _run_job_chunk(worker_id, chunk, extract_configs, schema, gt, inter_dir_str, run_dir_str):
-    inter_path = Path(inter_dir_str)
-    run_path = Path(run_dir_str)
-    docs = []
+def _run_job_chunk(
+    worker_id: int,
+    chunk: Sequence[Mapping[str, str]],
+    extract_configs: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    gt: Mapping[str, List[Dict[str, Any]]],
+    inter_dir: str,
+    run_dir: str,
+) -> List[Dict[str, Any]]:
+    """单个进程：只跑分给自己的公告，写各自中间文件。"""
+    inter_path = Path(inter_dir)
+    run_path = Path(run_dir)
+    docs: List[Dict[str, Any]] = []
     total = len(chunk)
     for idx, job in enumerate(chunk, 1):
         code = job["infocode"]
@@ -1258,12 +1512,22 @@ def _run_job_chunk(worker_id, chunk, extract_configs, schema, gt, inter_dir_str,
     return docs
 
 
-def _finalize_job(payload, schema, gt, inter_dir, run_dir):
+def _finalize_job(
+    payload: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    gt: Mapping[str, List[Dict[str, Any]]],
+    inter_dir: Path,
+    run_dir: Path,
+) -> Dict[str, Any]:
+    """写中间结果、对比、组装 per-doc 记录（按公告各写各的）。"""
     code = str(payload["infocode"])
     pdf_path = str(payload["pdf_path"])
     pdf_url = str(payload.get("pdf_url") or pdf_path)
     result = payload.get("result") if isinstance(payload.get("result"), dict) else {
-        "status": "failed", "infocode": code, "data": {}, "error_message": "empty result",
+        "status": "failed",
+        "infocode": code,
+        "data": {},
+        "error_message": "empty result",
     }
     err = str(payload.get("error") or "")
     tb = str(payload.get("traceback") or "")
@@ -1288,26 +1552,7 @@ def _finalize_job(payload, schema, gt, inter_dir, run_dir):
             pipeline = infer_pipeline_stage(result, records, err)
 
     write_json(inter_dir / f"{code}_extract.json", result)
-    if code in _GT_NOT_IN_CANDIDATES:
-        exp = [dict(r) for r in (gt.get(code) or [])]
-        n = len(exp)
-        fields = resolve_fields(schema)
-        cmp = {"infocode": code, "relinfocode": code, "status": "完全匹配",
-               "pipeline": pipeline, "pdf_path": pdf_path, "pdf_url": pdf_url,
-               "stats": {"db_count": n, "local_count": len(records),
-                         "all_match": n, "missing": 0, "extra": 0, "value_diff": 0,
-                         "forgiven_extra_periods": 0, "forgiven_gt_amount_subset": 1,
-                         "match_no_value_diff": n,
-                         "recall": 1.0, "precision": 1.0, "field_accuracy": 1.0,
-                         "comprehensive_hit": 1.0, "biz_hit": 1.0,
-                         "missing_root_cause": {}, "field_accuracy_detail": {},
-                         "match_key_fields": resolve_match_key_fields(schema, fields)},
-               "gt_items": [project_fields(r, fields) for r in exp],
-               "extract_items": [project_fields(r, fields) for r in (records or [])],
-               "missing_items": [], "extra_items": [], "wrong_items": [],
-               "forgiven_extra_items": []}
-    else:
-        cmp = compare_one(records, gt.get(code, []), code, schema, pipeline=pipeline)
+    cmp = compare_one(records, gt.get(code, []), code, schema, pipeline=pipeline)
     cmp["pdf_path"] = pdf_path
     cmp["pdf_url"] = pdf_url
     if err:
@@ -1315,23 +1560,29 @@ def _finalize_job(payload, schema, gt, inter_dir, run_dir):
     return cmp
 
 
-def task_batch_root(task):
+def task_batch_root(task: str) -> Path:
     return BATCH_RUNS / task
 
 
-def run_backtest(task, infocode="", workers=DEFAULT_WORKERS):
+def run_backtest(
+    task: str,
+    infocode: str = "",
+    workers: int = DEFAULT_WORKERS,
+) -> Dict[str, Any]:
     task_dir = TASKS_DIR / task
     if not task_dir.is_dir():
         raise FileNotFoundError(task_dir)
+
     schema = load_schema(task_dir)
 
     global _COMPARE_PRODUCT_VALIDATOR
     _COMPARE_PRODUCT_VALIDATOR = _build_product_validator(task_dir, schema)
     gt = load_gt(task_dir / "ground_truth.json")
+    # 默认：GT 里全部公告都跑
     infocodes = select_infocodes(gt, infocode=infocode)
     jobs = find_jobs(infocodes, schema)
     if not jobs:
-        raise RuntimeError(f"ground_truth.json has no runnable docs: task={task}")
+        raise RuntimeError(f"ground_truth.json 没有可跑的公告: task={task}")
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_id = f"{task}/{stamp}"
@@ -1358,16 +1609,18 @@ def run_backtest(task, infocode="", workers=DEFAULT_WORKERS):
     print(f"parallel jobs={len(jobs)} workers={n_workers} (process)", flush=True)
     for wid, chunk in enumerate(chunks):
         preview = ", ".join(j["infocode"] for j in chunk[:3])
-        more = f" ...+{len(chunk) - 3}" if len(chunk) > 3 else ""
+        more = f" …+{len(chunk) - 3}" if len(chunk) > 3 else ""
         print(f"  w{wid}: {len(chunk)} -> {preview}{more}", flush=True)
 
-    docs = []
+    docs: List[Dict[str, Any]] = []
     inter_dir_s = str(inter_dir)
     run_dir_s = str(run_dir)
     task_dir_s = str(task_dir)
     if n_workers == 1:
         _init_worker(task_dir_s)
-        docs.extend(_run_job_chunk(0, chunks[0], extract_configs, schema, gt, inter_dir_s, run_dir_s))
+        docs.extend(
+            _run_job_chunk(0, chunks[0], extract_configs, schema, gt, inter_dir_s, run_dir_s)
+        )
     else:
         with ProcessPoolExecutor(
             max_workers=n_workers,
@@ -1375,7 +1628,16 @@ def run_backtest(task, infocode="", workers=DEFAULT_WORKERS):
             initargs=(task_dir_s,),
         ) as pool:
             futures = [
-                pool.submit(_run_job_chunk, wid, chunk, extract_configs, schema, gt, inter_dir_s, run_dir_s)
+                pool.submit(
+                    _run_job_chunk,
+                    wid,
+                    chunk,
+                    extract_configs,
+                    schema,
+                    gt,
+                    inter_dir_s,
+                    run_dir_s,
+                )
                 for wid, chunk in enumerate(chunks)
             ]
             for fut in as_completed(futures):
@@ -1408,10 +1670,16 @@ def run_backtest(task, infocode="", workers=DEFAULT_WORKERS):
     }
 
 
-def accept_extract_as_gt(task_dir, infocode, rows, schema=None):
+def accept_extract_as_gt(
+    task_dir: Path,
+    infocode: str,
+    rows: Sequence[Mapping[str, Any]],
+    schema: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """用抽取行覆盖 ground_truth.json 中该公告（整表替换）。"""
     code = norm(infocode)
     if not code:
-        raise ValueError("infocode is empty")
+        raise ValueError("infocode 为空")
     schema = schema or load_schema(task_dir)
     fields = resolve_fields(schema)
     projected = [project_fields(r, fields) for r in rows if isinstance(r, Mapping)]
@@ -1421,9 +1689,10 @@ def accept_extract_as_gt(task_dir, infocode, rows, schema=None):
         if any(v is not None and str(v).strip() != "" for v in r.values())
     ]
     if not projected:
-        raise ValueError("extract is empty, refusing to overwrite GT")
-    gt_path = Path(task_dir) / "ground_truth.json"
+        raise ValueError("抽取为空，拒绝覆盖 GT")
+    gt_path = task_dir / "ground_truth.json"
     gt = load_gt(gt_path)
+    # 尽量保持原有 key 顺序：已有则原地替换，否则追加
     if code in gt:
         gt[code] = projected
         ordered = gt
@@ -1431,16 +1700,21 @@ def accept_extract_as_gt(task_dir, infocode, rows, schema=None):
         ordered = dict(gt)
         ordered[code] = projected
     write_json(gt_path, ordered)
-    return {"infocode": code, "row_count": len(projected), "gt_path": str(gt_path.resolve())}
+    return {
+        "infocode": code,
+        "row_count": len(projected),
+        "gt_path": str(gt_path.resolve()),
+    }
 
 
-def load_extract_rows_from_run(run_dir, infocode, schema):
-    path = Path(run_dir) / "intermediates" / f"{infocode}_extract.json"
+def load_extract_rows_from_run(run_dir: Path, infocode: str, schema: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """从 batch intermediates 读抽取行。"""
+    path = run_dir / "intermediates" / f"{infocode}_extract.json"
     if not path.exists():
-        raise FileNotFoundError(f"extract intermediate not found: {path}")
+        raise FileNotFoundError(f"找不到抽取中间结果: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
-        raise ValueError(f"extract file format error: {path}")
+        raise ValueError(f"抽取文件格式错误: {path}")
     rows = extract_records(payload, schema)
     if rows:
         return rows
@@ -1454,7 +1728,8 @@ def load_extract_rows_from_run(run_dir, infocode, schema):
     return []
 
 
-def resolve_run_dir(task, run_dir="", infocode=""):
+def resolve_run_dir(task: str, run_dir: str = "", infocode: str = "") -> Path:
+    """解析批次目录：显式 --run-dir，否则取含该公告抽取结果的最近一次跑批。"""
     if run_dir:
         p = Path(run_dir)
         candidates = [p]
@@ -1463,23 +1738,25 @@ def resolve_run_dir(task, run_dir="", infocode=""):
         for c in candidates:
             if c.is_dir():
                 return c.resolve()
-        raise FileNotFoundError(f"run dir not found: {run_dir}")
+        raise FileNotFoundError(f"找不到跑批目录: {run_dir}")
+
     base = BATCH_RUNS / task
     if not base.is_dir():
-        raise FileNotFoundError(f"batch root not found: {base}")
+        raise FileNotFoundError(f"找不到批次根目录: {base}")
     runs = sorted([d for d in base.iterdir() if d.is_dir()], key=lambda d: d.name, reverse=True)
     code = norm(infocode)
     if code:
         for d in runs:
             if (d / "intermediates" / f"{code}_extract.json").exists():
                 return d.resolve()
-        raise FileNotFoundError(f"no batch contains extract result: {code}")
+        raise FileNotFoundError(f"没有任何批次含抽取结果: {code}")
     if not runs:
-        raise FileNotFoundError(f"batch dir is empty: {base}")
+        raise FileNotFoundError(f"批次目录为空: {base}")
     return runs[0].resolve()
 
 
-def regen_report_html(run_dir):
+def regen_report_html(run_dir: Path) -> Path:
+    """根据已有 per_doc/summary 重写 report.html。"""
     run_dir = Path(run_dir).resolve()
     task = run_dir.parent.name
     task_dir = TASKS_DIR / task
@@ -1487,9 +1764,10 @@ def regen_report_html(run_dir):
     per = json.loads((run_dir / "metrics" / "per_doc.json").read_text(encoding="utf-8"))
     docs = per.get("rows") if isinstance(per, Mapping) else per
     if not isinstance(docs, list):
-        raise ValueError(f"per_doc.json format error: {run_dir}")
+        raise ValueError(f"per_doc.json 格式错误: {run_dir}")
     agg_path = run_dir / "metrics" / "summary.json"
-    agg = json.loads(agg_path.read_text(encoding="utf-8")) if agg_path.exists() else aggregate(docs)
+    agg = aggregate(docs)  # 永远重新计算（支持统计逻辑升级）
+    write_json(agg_path, agg)
     meta = {
         "batch_id": f"{task}/{run_dir.name}",
         "task": task,
@@ -1502,124 +1780,46 @@ def regen_report_html(run_dir):
     return report_path
 
 
-def _pick_free_port(host, start, tries=20):
-    import socket
-    for port in range(start, start + tries):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind((host, port))
-            except OSError:
-                continue
-            return port
-    raise RuntimeError(f"no free port: {start}..{start + tries - 1}")
 
-
-def serve_report(task, run_dir, port=DEFAULT_REPORT_PORT):
-    run_dir = Path(run_dir).resolve()
-    report_path = run_dir / "report.html"
-    if not report_path.exists():
-        regen_report_html(run_dir)
-    task_dir = TASKS_DIR / task
-    if not task_dir.is_dir():
-        raise FileNotFoundError(task_dir)
-    schema = load_schema(task_dir)
-    host = "127.0.0.1"
-    port = _pick_free_port(host, int(port))
-
-    class Handler(BaseHTTPRequestHandler):
-        def _json(self, code, payload):
-            raw = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
-            self.send_response(code)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(raw)
-
-        def do_GET(self):
-            path = urlparse(self.path).path
-            if path in {"/", "/report.html"}:
-                data = report_path.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(data)
-                return
-            self.send_error(404)
-
-        def do_POST(self):
-            path = urlparse(self.path).path
-            if path != "/api/accept-gt":
-                self.send_error(404)
-                return
-            try:
-                n = int(self.headers.get("Content-Length") or 0)
-                body = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
-                if not isinstance(body, dict):
-                    raise ValueError("request body must be JSON object")
-                code = norm(body.get("infocode"))
-                if not code:
-                    raise ValueError("missing infocode")
-                rows = load_extract_rows_from_run(run_dir, code, schema)
-                result = accept_extract_as_gt(task_dir, code, rows, schema=schema)
-                print(f"[accept-gt] ok {code} rows={result.get('row_count')}", flush=True)
-                self._json(200, {"ok": True, "run_dir": str(run_dir), **result})
-            except Exception as exc:
-                print(f"[accept-gt] fail {exc}", flush=True)
-                self._json(400, {"ok": False, "error": str(exc)})
-
-        def log_message(self, fmt, *args):
-            sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
-
-    httpd = ThreadingHTTPServer((host, port), Handler)
-    url = f"http://{host}:{port}/"
-    print(f"\nReport server: {url}")
-    print("Click accept as GT to write ground_truth.json; Ctrl+C to stop.", flush=True)
-    try:
-        import webbrowser
-        webbrowser.open(url)
-    except Exception:
-        pass
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nReport server stopped.", flush=True)
-    finally:
-        httpd.server_close()
-
-
-def main():
-    parser = argparse.ArgumentParser(description="PDF baseline backtest standalone")
-    parser.add_argument("--task", required=True, help="task name, e.g. HKCO_FN_PRODUCT")
-    parser.add_argument("--infocode", default="", help="run only one infocode")
-    parser.add_argument("--accept-gt", action="store_true", help="overwrite GT with extract results")
-    parser.add_argument("--serve", action="store_true", help="serve report locally for GT acceptance")
-    parser.add_argument("--run-dir", default="", help="batch run dir for --accept-gt / --serve")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="PDF baseline 回测：默认跑 ground_truth.json 全部公告")
+    parser.add_argument("--task", required=True, help="任务名，如 HKCO_FN_PRODUCT")
+    parser.add_argument("--infocode", default="", help="只跑 / 只采纳某一个公告")
+    parser.add_argument(
+        "--accept-gt",
+        action="store_true",
+        help="用跑批抽取结果覆盖 tasks/<task>/ground_truth.json 中对应公告（整表替换）",
+    )
+    parser.add_argument(
+        "--run-dir",
+        default="",
+        help="--accept-gt 时指定批次目录；默认自动找最近一次",
+    )
     args = parser.parse_args()
 
     if args.accept_gt:
         if not args.infocode:
-            parser.error("--accept-gt requires --infocode")
+            parser.error("--accept-gt 需要同时指定 --infocode")
         task_dir = TASKS_DIR / args.task
         if not task_dir.is_dir():
-            parser.error(f"task dir not found: {task_dir}")
+            parser.error(f"找不到 task 目录: {task_dir}")
         schema = load_schema(task_dir)
         run_dir = resolve_run_dir(args.task, args.run_dir, args.infocode)
         rows = load_extract_rows_from_run(run_dir, args.infocode, schema)
         result = accept_extract_as_gt(task_dir, args.infocode, rows, schema=schema)
-        print(json.dumps({"ok": True, "run_dir": str(run_dir), **result}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"ok": True, "run_dir": str(run_dir), **result},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
 
-    if args.serve:
-        run_dir = resolve_run_dir(args.task, args.run_dir, args.infocode)
-        regen_report_html(run_dir)
-        serve_report(args.task, run_dir)
-        return 0
-
-    result = run_backtest(args.task, infocode=args.infocode)
+    result = run_backtest(
+        args.task,
+        infocode=args.infocode,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     print(f"\nReport: {result['report_html']}")
     return 0

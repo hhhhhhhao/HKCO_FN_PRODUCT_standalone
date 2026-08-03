@@ -245,11 +245,16 @@ def _is_inter_table_glue(line):
         return True
     if re.match(r"^[（(]?Note\s*\d", text, re.I):
         return True
+    # 期间横幅 — 但若同时是分部/业绩/损益等章节标题则不合并（避免把两个独立表拼成一个）
     if re.search(
         r"截至|止\s*[三四五六九十\d]+[個个]?月|止年度|止期間|止期间|months?\s*ended",
         text,
         re.I,
     ):
+        # 排除：包含业务/分部/财务关键词的章节标题
+        if re.search(r'分部|業績|业绩|損益|损益|利潤|利润|財務|财务|經營|经营|'
+                     r'分類|分类|分析|資料|资料|信息|如下', text):
+            return False
         return True
     if len(text) <= 24 and re.search(
         r"單位|单位|幣種|币种|百萬|百万|千元|千港元|千美元|日[元圓圆]|港元|人民幣|人民币",
@@ -2278,7 +2283,26 @@ def _pick_best(pool, names=None):
             # 合約負債/合同负债表降权
             if re.search(r"合約負債|合同负债|合約負债|合同負債", title):
                 rev = 0
-            return (hits, rev, amt, sig, -pg)
+            # 分部表加分：LP产品少(<=3)时分部表通常比简单收入表更完整
+            has_seg_title = bool(re.search(r'分部|分類.*(資料|信息)|可呈報', title))
+            # 简易成本段检测：扫描body前15行是否有成本/费用关键词
+            _LOOSE_COST_KW = re.compile(r'成本|費用|费用|開支|开支|虧損|亏损|研發|研发|'
+                                       r'折舊|折旧|攤銷|摊销|減值|减值')
+            has_cost = False
+            first_rev_row = -1
+            for i, row in enumerate(tbl[:15] or []):
+                if not isinstance(row, list) or not row:
+                    continue
+                c0 = str(row[0] or '').strip()
+                has_digit = any(re.search(r'\d', str(c or '')) for c in row[1:])
+                if has_digit and first_rev_row < 0:
+                    first_rev_row = i
+                if first_rev_row >= 0 and i > first_rev_row and _LOOSE_COST_KW.search(c0) and has_digit:
+                    has_cost = True
+                    break
+            seg_bonus = 1 if (has_seg_title and len(names) <= 3) else 0
+            cost_bonus = 1 if has_cost else 0
+            return (hits, rev + seg_bonus + cost_bonus, amt, sig, -pg)
         rank = _title_rank(c.get("title", ""))
         sig = _col_signal(tbl)
         return (-rank, sig, -pg)
@@ -2797,8 +2821,8 @@ def _validate_revenue_table(candidate, names, hits, sim):
     pl_ratio = pl_cost / total
     prod_ratio = prod_hits / max(len(names_set), 1)
 
-    # P&L占比>50% 且 产品命中率<30% → 很可能是P&L表
-    if pl_ratio > 0.5 and prod_ratio < 0.3:
+    # P&L占比>70% 且 产品命中率<20% → 很可能是P&L表（放宽阈值避免误杀）
+    if pl_ratio > 0.7 and prod_ratio < 0.2:
         return False
 
     return True

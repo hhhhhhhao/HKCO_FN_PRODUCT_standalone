@@ -1,0 +1,24 @@
+{
+  "title": "港股主营业务收入产品分布 Baseline 跑批报告",
+  "extract_module": "custom.service.EAPS_HKCO_FN_PRODUCT",
+  "fields": [
+    "STARTDATE",
+    "REPORTDATE",
+    "CURRENCY",
+    "PRODUCTNAME",
+    "MBREVENUE",
+    "MBCOST",
+    "GROSS_PROFIT",
+    "UNIT"
+  ],
+  "data_path": "data.records",
+  "num_tol": 0.0001,
+  "match_key_fields": [
+    "STARTDATE",
+    "REPORTDATE",
+    "PRODUCTNAME"
+  ],
+  "pdf_dir": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/pdf",
+  "cache_dir": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/parse_cache",
+  "mineru_json_base_dir": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/pdf_json"
+}
