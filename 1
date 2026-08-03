@@ -195,8 +195,5 @@ for fname in os.listdir(debug_dir):
 
 5. **LP 数据是最可靠的信号**。`is_row_product` 用 LP 名匹配判断行/列产品；`_last_period_amount_evidence` 用 LP 名+金额判断表质量。
 
-6. **改完就跑全量回测**。单 doc 通过不代表整体改善。`python run_backtest.py --task HKCO_FN_PRODUCT` 然后比较 `summary.json`。
-
-7. **extra 比 missing 好修**。extra 往往是过滤器漏洞，加模式即可。missing 根因多样（选错表、提取漏、名字变体），需要逐个击破。
 
 不能改 run_backtest.py
