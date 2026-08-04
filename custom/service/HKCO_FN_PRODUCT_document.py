@@ -32,15 +32,15 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
     text = line.get("text", "").strip()
 
-    if text == '12 所得税開支':
+    if text == '截至二零二四年十二月三十一日止六個月':
         print
 
     text = line["text"].strip()
     if not text:
         return False
 
-    if line['source_type'] == 'title':
-        return True
+    if line.get("is_table", False):
+        return False
 
     # 强制匹配：如果匹配 sure_regex，直接认为是标题
     if match_patterns(text, sure_regex):
@@ -49,6 +49,9 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
     # 排除条件：匹配 exclude_regex 的不是标题
     if match_patterns(text, exclude_regex):
         return False
+
+    if line['source_type'] == 'title' or line['source_type'] == 'table_caption':
+        return True
 
     # 以[一二三四五六七八九十]开头后面跟中文的
     if re.search(r"^[一二三四五六七八九十][\u4e00-\u9fff]+", text) and len(text) > 5 and all(ch not in string.punctuation for ch in text[:5]):
@@ -84,6 +87,8 @@ def get_lines_grouped(lines):
         (r"[。%;；《》]", 0),
         (r"^(四川|十堰|三峡|三一|一大|九江|五矿)", 0),
         (r"(元|位于|注册资本为|100)", 0),
+        (r"^(截).*(月|年度)$", 0),
+        (r"^(於|于)\s*\d{4}年\d{1,2}月\d{1,2}日", 0),
     ]
     sure_regex = [
         (r"(收入|余额)(构成|结构)", 0),
@@ -93,7 +98,12 @@ def get_lines_grouped(lines):
         (r"^(近[一二三四五六七八九])年.*(表|如下:|所示:)$", 0),
         (r"^(近[一二三四五六七八九])年", 0),
         (r"(分布情况)$", 0),
+        (r"(按.*(地區|地区|地域|區域|区域|所在地).*劃分)", 0),
+        (r"按.*(收入|收益|業績)", 0),
+        (r"^(其他分部資料:｜綜合全面收益表)$", 0),
+        (r"(分部.*如下:)$", 0),
     ]
+
     # 找到标题段落所在索引
     lines_group_index = [
         index for index, line in enumerate(lines)
@@ -109,5 +119,17 @@ def get_lines_grouped(lines):
             # 取当前索引到下一个索引之前的部分
             next_index = lines_group_index[i + 1]
             lines_grouped.append(lines[index:next_index])
+
+    # 合并
+    for i, inner_lines in enumerate(lines_grouped):
+        first_line = inner_lines[0]["text"]
+        if len(inner_lines) == 1 and '收入' in first_line:
+            # 放入下一个章节
+            next_index = lines_grouped.index(inner_lines) + 1
+            if next_index < len(lines_grouped):
+                lines_grouped[next_index] = inner_lines + lines_grouped[next_index]
+                # 先 copy 一份 dict 再合并，避免和原位置共享引用
+                lines_grouped[next_index] = [dict(inner_lines[0])] + lines_grouped[next_index]
+                lines_grouped[i][0]['text'] = ''
 
     return lines_grouped
