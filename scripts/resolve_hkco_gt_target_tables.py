@@ -170,6 +170,12 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
     lines = _load_lines(document_dir)
     lines_grouped = get_lines_grouped(lines)
     tables = [line for group in lines_grouped for line in group if line.get("is_table") and line.get("table")]
+    section_titles = {
+        id(line): group[0]["text"]
+        for group in lines_grouped
+        for line in group
+        if line.get("is_table") and line.get("table")
+    }
     for physical_index, table in enumerate(tables):
         table["id"] = f"p{table.get('page_number', 'x')}:{physical_index}"
         table["page"] = table.get("page_number")
@@ -217,7 +223,7 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
             {
                 "table_id": item["table"]["id"],
                 "page": item["table"]["page"],
-                "section_title": item["table"]["section_title"],
+                "section_title": section_titles[id(item["table"])],
                 "title": "",
                 "score": list(item["score"]),
                 "matched_facts": item["matched_facts"],

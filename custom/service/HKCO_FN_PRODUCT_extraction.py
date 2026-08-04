@@ -191,7 +191,7 @@ def extract_main_table(main_inner_lines, context):
         "debug": {
             "stage": "main_table_extracted" if facts else "main_table_extraction_failed",
             "main_table_id": table.get("id", ""),
-            "section_title": table.get("section_title", ""),
+            "section_title": main_inner_lines[0]["text"],
             "classification": classification,
             "row_count": len(rows),
             "fact_count": len(facts),

@@ -29,11 +29,18 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
     返回:
         bool: 如果是标题行返回 True，否则返回 False
     """
-    if not isinstance(line, dict):
-        return False
-    text = str(line.get("text") or "").strip()
+
+    text = line.get("text", "").strip()
+
+    if text == '12 所得税開支':
+        print
+
+    text = line["text"].strip()
     if not text:
         return False
+
+    if line['source_type'] == 'title':
+        return True
 
     # 强制匹配：如果匹配 sure_regex，直接认为是标题
     if match_patterns(text, sure_regex):

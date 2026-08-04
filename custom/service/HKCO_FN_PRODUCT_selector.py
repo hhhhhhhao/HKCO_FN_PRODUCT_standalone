@@ -63,7 +63,6 @@ def select_main_table(lines_grouped, prior_names=()):
     for inner_lines in lines_grouped:
         first_line = inner_lines[0]["text"]
         inner_lines_text = "/".join(line["text"] for line in inner_lines)
-        page_number = inner_lines[0]["page_number"]
 
         # 严格标题排除只检查章节第一行，不使用正文或表格内容触发排除。
         if any( keyword in first_line for keyword in ( "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债","資產負債", "资产负债","員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量","賬齡", "账龄","現金流量", "现金流量","淨額", "净额",)):
@@ -71,21 +70,17 @@ def select_main_table(lines_grouped, prior_names=()):
 
         # 基础候选必须含有非空，并且至少存在一个数字单元格。
         tables = [line for line in inner_lines if line.get("is_table") and _rows(line)]
+        table_text = str(tables)
         if not tables:
             continue
         if not any(NUMBER.match(cell) for table in tables for row in _rows(table) for cell in row):
             continue
 
-        # 将所属章节信息写回 table line，后续抽取无需重新查找标题和页码。
-        for table in tables:
-            table["section_title"] = first_line
-            table["section_text"] = inner_lines_text
-            table["section_page_number"] = page_number
         related_inner_lines.append(inner_lines)
 
         # 历史产品名匹配
         # 全部上期产品命中才进入 full_history
-        matched_count = sum(historical_product_name_matches(prior_name, inner_lines_text) for prior_name in prior_names)
+        matched_count = sum(historical_product_name_matches(prior_name, table_text) for prior_name in prior_names)
         history_groups[matched_count].append(inner_lines)
         if prior_names and matched_count == len(prior_names):
             full_history.append(inner_lines)
