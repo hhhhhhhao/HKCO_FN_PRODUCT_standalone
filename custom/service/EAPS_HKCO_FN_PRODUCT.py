@@ -425,9 +425,7 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg(f"sections={len(sections)} tables={sum(len(s['tables']) for s in sections)}")
 
                     # 2. 遍历章节，只选择一张主表。
-                    main_table, selection_debug = select_main_table(
-                        sections, context["prior_product_names"]
-                    )
+                    main_table, selection_debug = select_main_table(sections, context["prior_product_names"])
                     _dbg_section("main_table_selection")
                     for item in selection_debug:
                         _dbg(json.dumps({
@@ -691,7 +689,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202503251647229111"
+    code = "AN202603201820676603"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

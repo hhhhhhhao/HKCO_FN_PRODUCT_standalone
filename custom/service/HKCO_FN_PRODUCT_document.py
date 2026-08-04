@@ -176,7 +176,8 @@ def split_into_sections(lines):
     """按标题正则切章；每张原始物理表原样归入所属章节。"""
     sections = []
     physical_index = 0
-    for group_index, group in enumerate(get_lines_grouped(lines)):
+    lines_grouped = get_lines_grouped(lines)
+    for group_index, group in enumerate(lines_grouped):
         section_title = _group_title(group)
         section = {"title": section_title, "index": group_index, "tables": []}
         for line_index, line in enumerate(group):

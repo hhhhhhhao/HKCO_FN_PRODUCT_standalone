@@ -249,23 +249,34 @@ def _is_complete_profit_loss(table, rows):
 
 
 def _select_tables(tables, prior_names):
+    # 将上期产品名去重并标准化。prior_keys 为空表示该公告没有可用历史产品。
     prior_products = _prior_product_map(prior_names)
     prior_keys = set(prior_products)
+
+    # 第一阶段：只收集每张物理表的判断依据，不在这里决定最终候选。
+    # 每张表都保留 document_order，保证最终完全同分时仍选择文档中先出现的表。
     scored = []
     for document_order, table in enumerate(tables):
         rows = _rows(table)
         flat_keys = _flattened_cell_keys(rows)
+
+        # 历史产品命中：逐个检查上期产品名是否能在该表任一单元格中命中。
+        # full_history_match 只有在“存在历史产品”且“一个都没有遗漏”时才为 True。
         matched_keys = {
             prior_key for prior_key in prior_keys
             if any(historical_product_name_matches(prior_key, cell_key) for cell_key in flat_keys)
         }
         missing_keys = prior_keys - matched_keys
+
+        # 基础排除条件只有两个：空表、整张表完全没有数字。
         has_amount = any(NUMBER.match(str(cell or "")) for row in rows for cell in row)
         rejection_reasons = []
         if not rows:
             rejection_reasons.append("empty_table")
         if not has_amount:
             rejection_reasons.append("no_numeric_amount")
+
+        # 下列语义信息先记录，只有候选发生并列时才会用于后续选择。
         semantic_level, semantic_strength, family, family_priority = _semantic_family(table, rows)
         scored.append({
             "table": table,
@@ -286,9 +297,14 @@ def _select_tables(tables, prior_names):
             "flat_cell_count": len(flat_keys),
             "selection_stage": "basic_candidate",
         })
+
+    # 第二阶段：应用基础排除。没有任何基础候选时直接返回空，不再继续选表。
     basic = [item for item in scored if item["eligible"]]
     if not basic:
         return None, scored
+
+    # 第三阶段：严格标题排除。
+    # clean 非空时使用排除后的候选；如果严格标题排除了全部基础候选，则恢复 basic。
     clean = [item for item in basic if not item["semantic_exclusion_reasons"]]
     candidates = clean or basic
     if clean:
@@ -296,30 +312,46 @@ def _select_tables(tables, prior_names):
             if item not in clean:
                 item["eligible"] = False
                 item["selection_stage"] = "strict_title_excluded"
+
+    # 第四阶段：按历史产品命中情况缩小候选范围。
+    # 只要存在至少一张全量历史命中表，就只允许全量命中表继续参与选择。
     full = [item for item in candidates if item["full_history_match"]]
     if full:
         cohort = full
         stage = "full_history_cohort"
     else:
+        # 没有任何全量历史命中表时，才降级到“历史产品命中数量最多”的候选。
+        # 无历史产品时所有表的命中数都是 0，因此此处不会额外缩小候选范围。
         max_hits = max(item["matched_product_count"] for item in candidates)
         cohort = [item for item in candidates if item["matched_product_count"] == max_hits]
         stage = "fallback_max_history_cohort"
     for item in cohort:
         item["selection_stage"] = stage
+
+    # 第五阶段：历史筛选后只有一张候选时直接选择，不再应用损益或收入语义规则。
     if len(cohort) == 1:
         cohort[0]["selection_stage"] = (
             "selected_single_full_history_candidate" if full
             else "selected_single_fallback_history_candidate"
         )
         return cohort[0]["table"], scored
+
+    # 第六阶段：完整损益表优先只适用于“多张全量历史命中表并列”。
+    # full 为空时，即无历史数据或降级候选，complete_profit_loss 必定为空。
     complete_profit_loss = [item for item in cohort if full and item["complete_profit_loss"]]
     if len(complete_profit_loss) == 1:
+        # 只有一张完整损益表时直接选择。
         complete_profit_loss[0]["selection_stage"] = "selected_complete_profit_loss"
         return complete_profit_loss[0]["table"], scored
     if complete_profit_loss:
+        # 有多张完整损益表时，只保留这些表，再进入收入语义并列判断。
         cohort = complete_profit_loss
         for item in cohort:
             item["selection_stage"] = "complete_profit_loss_cohort"
+
+    # 第七阶段：仍然并列时，依次比较完整收入语义、语义证据位置和表族优先级。
+    # key 完全相同时 max 会返回 cohort 中先出现的元素；cohort 沿用文档顺序，
+    # 因此最终保留文档中先出现的物理表，不需要页码或物理表 ID 排序。
     selected = max(
         cohort,
         key=lambda item: (
