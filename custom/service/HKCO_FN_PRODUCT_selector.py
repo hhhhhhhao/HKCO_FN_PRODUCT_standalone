@@ -1,42 +1,18 @@
 # -*- coding: utf-8 -*-
-"""HKCO_FN_PRODUCT 正式选表规则。
+"""HKCO_FN_PRODUCT 正式选表。
 
-完整顺序：
-1. 每张物理表独立参加选择；只硬排除空表和没有数字的表。
-2. 只用完整章节标题或完整表标题排除明确的非目标表；不扫描表头或正文。
-3. 将表内全部单元格与上期产品名逐个比较；全部产品名都命中才算历史产品命中。
-4. 存在全量历史命中表时，只保留这些表；一张都没有时才降级为命中数量最多。
-5. 当前候选只有一张时直接选中，不再检查表族或页码。
-6. 全量历史命中候选有多张时，若其中有同时披露收入、成本、毛利的亏损表/损益表，直接优先。
-7. 仍有多张并列时，按现有完整收入语义、语义位置、表族选择。
-8. 如果严格标题排除会删除全部基础候选，则恢复全部基础候选，禁止选空。
-9. 不再使用页码排序；最终分数完全相同时，保留文档中先出现的物理表。
+lines_grouped 中的每个 inner_lines 是一个完整章节单元，标题、正文、页码和
+物理表始终一起参与判断。每个 inner_lines 只解析一次，再按历史产品、完整损益
+和收入语义缩小章节范围，最终返回唯一主章节。
 
-选表禁止使用当前期 GT、金额、行列结构和页码。
+正式选表不使用 GT、当前期产品、GT 金额、页码排序或物理表 ID。
 """
 import re
-import unicodedata
-
-
-_TRADITIONAL = "臺裏裡為於與業務產銷售開發網據聯車醫藥護兒電纜風險資產物項類體國華萬億圓號總計額營運綜合損益潤"
-_SIMPLIFIED = "台里里为于与业务产销售开发网据联车医药护儿电缆风险资产物项类体国华万亿圆号总计额营运综合损益润"
-_TRANSLATION = str.maketrans(_TRADITIONAL, _SIMPLIFIED)
-
-
-def identity_key(value):
-    text = unicodedata.normalize("NFKC", str(value or "")).translate(_TRANSLATION).lower()
-    text = re.sub(
-        r"\([^)]*(?:附注|note|[ivx\d]+)[^)]*\)|"
-        r"（[^）]*(?:附注|note|[ivx\d]+)[^）]*）",
-        "",
-        text,
-        flags=re.I,
-    )
-    return re.sub(r"[\s:：,，。;；()（）\[\]【】、/\\_\-–—]+", "", text)
-
 
 def historical_product_name_matches(left, right):
-    left_key, right_key = identity_key(left), identity_key(right)
+    """判断去除首尾空白并统一小写后的上期产品名能否在章节文本中命中。"""
+    left_key = str(left or "").strip().lower()
+    right_key = str(right or "").strip().lower()
     if not left_key or not right_key:
         return False
     if left_key == right_key:
@@ -49,320 +25,107 @@ def historical_product_name_matches(left, right):
 
 
 NUMBER = re.compile(r"^\s*\(?-?\d[\d,]*(?:\.\d+)?\)?\s*$")
-REVENUE = re.compile(
-    r"收入|收益|營業額|营业额|銷售額|销售额|revenue|turnover|sales",
-    re.I,
-)
-SEGMENT = re.compile(
-    r"經營分部|经营分部|業務分部|业务分部|可呈報分部|可报告分部|segment",
-    re.I,
-)
-PRODUCT_SERVICE = re.compile(
-    r"產品|产品|商品|貨品|货品|服務|服务|product|goods|service",
-    re.I,
-)
-TYPE_SPLIT = re.compile(
-    r"按.{0,12}(?:劃分|划分|分類|分类|類型|类型)|"
-    r"(?:產品|产品|商品|貨品|货品|服務|服务).{0,12}(?:類型|类型|分類|分类)|"
-    r"type of (?:goods|products?|services?)",
-    re.I,
-)
-BREAKDOWN = re.compile(
-    r"構成|构成|分拆|明細|明细|分類|分类|分析|breakdown|disaggregat|detail",
-    re.I,
-)
-EXTERNAL_CUSTOMER_REVENUE = re.compile(
-    r"(?:外部|外界).{0,8}(?:客戶|客户).{0,12}(?:收入|收益)|"
-    r"(?:收入|收益).{0,12}(?:外部|外界).{0,8}(?:客戶|客户)|"
-    r"external.{0,12}customer.{0,12}(?:revenue|turnover|sales)",
-    re.I,
-)
-PROFIT_LOSS = re.compile(
-    r"損益表|损益表|虧損表|亏损表|全面虧損表|全面亏损表|"
-    r"利潤表|利润表|全面收益表|全面損益表|全面损益表|income statement|"
-    r"statement of profit|profit (?:or|and) loss",
-    re.I,
-)
-COST = re.compile(
-    r"銷售成本|销售成本|營業成本|营业成本|收入成本|服務成本|服务成本|"
-    r"cost of sales|cost of revenue|cost of services",
-    re.I,
-)
-GROSS_PROFIT = re.compile(
-    r"毛利|毛利潤|毛利润|gross profit|gross loss|gross margin",
-    re.I,
-)
+REVENUE_KEYWORDS = ["收入", "收益", "營業額", "营业额", "銷售額", "销售额", "revenue", "turnover", "sales"]
+PROFIT_LOSS_KEYWORDS = ["損益表", "损益表", "虧損表", "亏损表", "全面虧損表", "全面亏损表", "利潤表", "利润表", "全面收益表", "全面損益表", "全面损益表", "income statement", "statement of profit", "profit or loss", "profit and loss"]
+COST_KEYWORDS = ["銷售成本", "销售成本", "營業成本", "营业成本", "收入成本", "服務成本", "服务成本", "cost of sales", "cost of revenue", "cost of services"]
+GROSS_PROFIT_KEYWORDS = ["毛利", "毛利潤", "毛利润", "gross profit", "gross loss", "gross margin"]
 
-# 严格标题排除：所有表达式都匹配清理编号后的完整标题，不扫描表头或正文。
-STRICT_TITLE_EXCLUSIONS = (
-    (
-        "assets_or_liabilities_table",
-        re.compile(
-            r"^(?:(?:分類|分类|分部|可呈報分部|可报告分部|segment)\s*)?"
-            r"(?:資產|资产)(?:\s*(?:及|和|與|与)\s*(?:負債|负债))?"
-            r"(?:\s*(?:分析|明細|明细|資料|资料))?$|"
-            r"^(?:(?:分類|分类|分部|segment)\s*)?(?:負債|负债)"
-            r"(?:\s*(?:分析|明細|明细|資料|资料))?$|"
-            r"^(?:segment\s+)?assets?(?:\s+and\s+liabilit(?:y|ies))?$",
-            re.I,
-        ),
-    ),
-    (
-        "employee_headcount_table",
-        re.compile(
-            r"^(?:員工|员工|僱員|雇员)(?:人數|人数)(?:分析|明細|明细)?$|"
-            r"^(?:employee headcount|number of employees)$",
-            re.I,
-        ),
-    ),
-    (
-        "sales_or_production_volume_table",
-        re.compile(
-            r"^(?:銷量|销量|銷售數量|销售数量|產量|产量)(?:分析|明細|明细)?$|"
-            r"^(?:sales volume|production volume)$",
-            re.I,
-        ),
-    ),
-    (
-        "receivable_aging_table",
-        re.compile(
-            r"^(?:應收|应收)(?:賬款|账款)?(?:賬齡|账龄)(?:分析)?$|"
-            r"^(?:賬齡|账龄)(?:分析)?$|"
-            r"^(?:receivable )?(?:ageing|aging)(?: analysis)?$",
-            re.I,
-        ),
-    ),
-    (
-        "cash_flow_table",
-        re.compile(
-            r"^(?:綜合|综合|合併|合并|簡明|简明|未經審核|未经审核)*"
-            r"(?:現金流量表|现金流量表)$|^(?:statement of )?cash flows?$",
-            re.I,
-        ),
-    ),
-)
-
-TOTAL_KEYS = {
-    identity_key(value)
-    for value in ("合計", "合计", "總計", "总计", "總額", "总额", "total")
-}
-
+# 每一行是一个关键词优先级，从上到下依次匹配。
+TABLE_KEYWORDS = [
+    ["經營分部", "经营分部"],
+    ["外部客戶收入", "外部客户收入"],
+    ["產品收入", "产品收入", "服務收入", "服务收入"],
+    ["收入構成", "收入构成", "收入分拆", "收入明細", "收入明细"],
+    ["收入", "收益"],
+    ["損益表", "损益表", "虧損表", "亏损表"],
+]
 
 def _rows(table):
-    return [list(row) for row in table.get("rows", []) if isinstance(row, (list, tuple))]
+    """读取原始 table line 中的二维表格。"""
+    return [list(row) for row in table.get("table", []) if isinstance(row, (list, tuple))]
 
 
-def _flattened_cell_keys(rows):
-    return {
-        key
-        for row in rows
-        for cell in row
-        if (key := identity_key(cell))
-    }
+def select_main_table(lines_grouped, prior_names=()):
+    """按章节顺序选择唯一主章节，并返回基础过滤后的相关章节。"""
+    # 上期产品名直接去重。
+    prior_names = list(set(prior_names))
+    # 合计项不参与历史产品命中。
+    prior_names = [name for name in prior_names if not any(keyword in name for keyword in ['合計', '合计', '總計', '总计', '總額', '总额', 'total'])]
 
+    # 下标就是命中的上期产品数量。
+    history_groups = [[] for _ in range(len(prior_names) + 1)]
+    full_history = []
 
-def _prior_product_map(prior_names):
-    products = {}
-    for name in prior_names or ():
-        key = identity_key(name)
-        if key and key not in TOTAL_KEYS:
-            products.setdefault(key, str(name).strip())
-    return products
+    # 相关章节整体保留，供后续读取表格、单位和币种。
+    related_inner_lines = []
 
+    # 每个 inner_lines 只解析一次；标题、正文、页码和物理表始终属于同一组。
+    for inner_lines in lines_grouped:
+        first_line = inner_lines[0]["text"]
+        inner_lines_text = "/".join(line["text"] for line in inner_lines)
+        page_number = inner_lines[0]["page_number"]
 
-def _title_text(table):
-    return str(table.get("section_title") or "").strip()
-
-
-def _header_text(rows):
-    return " ".join(str(cell or "") for row in rows[:4] for cell in row).strip()
-
-
-def _table_text(rows):
-    return " ".join(str(cell or "") for row in rows for cell in row).strip()
-
-
-def _normalized_title(value):
-    text = str(value or "").strip()
-    text = re.sub(
-        r"^\s*(?:[（(]?[一二三四五六七八九十\dA-Da-divxIVX]+[）)\.、．]?\s*)+",
-        "",
-        text,
-    )
-    text = re.sub(r"[（(](?:續|续|continued)[）)]\s*$", "", text, flags=re.I)
-    return re.sub(r"[\s:：。]+$", "", text).strip()
-
-
-def _exclusion_reasons(table, _rows):
-    """只按完整 section_title/title 排除，不读取表头和表格正文。"""
-    titles = {
-        title
-        for title in (_normalized_title(table.get("section_title")),)
-        if title
-    }
-    return list(dict.fromkeys(
-        name
-        for name, pattern in STRICT_TITLE_EXCLUSIONS
-        if any(pattern.fullmatch(title) for title in titles)
-    ))
-
-
-def _semantic_family(table, rows):
-    """判断完整收入语义；同一语义优先采用离表最近的标题证据。"""
-    title = _title_text(table)
-    header = _header_text(rows)
-    body = _table_text(rows)
-    zones = ((title, 3), (" ".join((title, header)), 2), (body, 1))
-    candidates = []
-
-    for text, evidence_strength in zones:
-        if not text:
+        # 严格标题排除只检查章节第一行，不使用正文或表格内容触发排除。
+        if any( keyword in first_line for keyword in ( "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债","資產負債", "资产负债","員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量","賬齡", "账龄","現金流量", "现金流量","淨額", "净额",)):
             continue
-        if EXTERNAL_CUSTOMER_REVENUE.search(text):
-            candidates.append((5, evidence_strength, "external_customer_revenue", 4))
-        if SEGMENT.search(text) and REVENUE.search(text):
-            candidates.append((5, evidence_strength, "segment_revenue", 4))
-        if PRODUCT_SERVICE.search(text) and TYPE_SPLIT.search(text) and REVENUE.search(text):
-            candidates.append((4, evidence_strength, "product_service_revenue", 3))
-        if REVENUE.search(text) and BREAKDOWN.search(text):
-            candidates.append((3, evidence_strength, "revenue_breakdown", 2))
-        if REVENUE.search(text):
-            candidates.append((2, evidence_strength, "revenue", 2))
-        if PROFIT_LOSS.search(text):
-            candidates.append((1, evidence_strength, "profit_loss", 1))
 
-    if not candidates:
-        return 0, 0, "unknown", 0
-    return max(candidates)
+        # 基础候选必须含有非空，并且至少存在一个数字单元格。
+        tables = [line for line in inner_lines if line.get("is_table") and _rows(line)]
+        if not tables:
+            continue
+        if not any(NUMBER.match(cell) for table in tables for row in _rows(table) for cell in row):
+            continue
 
+        # 将所属章节信息写回 table line，后续抽取无需重新查找标题和页码。
+        for table in tables:
+            table["section_title"] = first_line
+            table["section_text"] = inner_lines_text
+            table["section_page_number"] = page_number
+        related_inner_lines.append(inner_lines)
 
-def _is_complete_profit_loss(table, rows):
-    """完整亏损/损益表必须同时出现收入、成本和毛利。"""
-    title = _title_text(table)
-    body = _table_text(rows)
-    return bool(
-        PROFIT_LOSS.search(" ".join((title, body)))
-        and REVENUE.search(body)
-        and COST.search(body)
-        and GROSS_PROFIT.search(body)
-    )
+        # 历史产品名匹配
+        # 全部上期产品命中才进入 full_history
+        matched_count = sum(historical_product_name_matches(prior_name, inner_lines_text) for prior_name in prior_names)
+        history_groups[matched_count].append(inner_lines)
+        if prior_names and matched_count == len(prior_names):
+            full_history.append(inner_lines)
 
+    if not related_inner_lines:
+        return None, []
 
-def _select_tables(tables, prior_names):
-    # 将上期产品名去重并标准化。prior_keys 为空表示该公告没有可用历史产品。
-    prior_products = _prior_product_map(prior_names)
-    prior_keys = set(prior_products)
+    # 只有一个全量历史命中章节时，直接选择。
+    if len(full_history) == 1:
+        return full_history[0], related_inner_lines
 
-    # 第一阶段：只收集每张物理表的判断依据，不在这里决定最终候选。
-    # 每张表都保留 document_order，保证最终完全同分时仍选择文档中先出现的表。
-    scored = []
-    for document_order, table in enumerate(tables):
-        rows = _rows(table)
-        flat_keys = _flattened_cell_keys(rows)
-
-        # 历史产品命中：逐个检查上期产品名是否能在该表任一单元格中命中。
-        # full_history_match 只有在“存在历史产品”且“一个都没有遗漏”时才为 True。
-        matched_keys = {
-            prior_key for prior_key in prior_keys
-            if any(historical_product_name_matches(prior_key, cell_key) for cell_key in flat_keys)
-        }
-        missing_keys = prior_keys - matched_keys
-
-        # 基础排除条件只有两个：空表、整张表完全没有数字。
-        has_amount = any(NUMBER.match(str(cell or "")) for row in rows for cell in row)
-        rejection_reasons = []
-        if not rows:
-            rejection_reasons.append("empty_table")
-        if not has_amount:
-            rejection_reasons.append("no_numeric_amount")
-
-        # 下列语义信息先记录，只有候选发生并列时才会用于后续选择。
-        semantic_level, semantic_strength, family, family_priority = _semantic_family(table, rows)
-        scored.append({
-            "table": table,
-            "document_order": document_order,
-            "eligible": not rejection_reasons,
-            "rejection_reasons": rejection_reasons,
-            "semantic_exclusion_reasons": _exclusion_reasons(table, rows),
-            "family": family,
-            "family_priority": family_priority,
-            "semantic_level": semantic_level,
-            "semantic_strength": semantic_strength,
-            "complete_profit_loss": _is_complete_profit_loss(table, rows),
-            "history_product_count": len(prior_keys),
-            "matched_product_count": len(matched_keys),
-            "matched_product_names": [prior_products[key] for key in prior_products if key in matched_keys],
-            "missing_product_names": [prior_products[key] for key in prior_products if key in missing_keys],
-            "full_history_match": bool(prior_keys) and matched_keys == prior_keys,
-            "flat_cell_count": len(flat_keys),
-            "selection_stage": "basic_candidate",
-        })
-
-    # 第二阶段：应用基础排除。没有任何基础候选时直接返回空，不再继续选表。
-    basic = [item for item in scored if item["eligible"]]
-    if not basic:
-        return None, scored
-
-    # 第三阶段：严格标题排除。
-    # clean 非空时使用排除后的候选；如果严格标题排除了全部基础候选，则恢复 basic。
-    clean = [item for item in basic if not item["semantic_exclusion_reasons"]]
-    candidates = clean or basic
-    if clean:
-        for item in basic:
-            if item not in clean:
-                item["eligible"] = False
-                item["selection_stage"] = "strict_title_excluded"
-
-    # 第四阶段：按历史产品命中情况缩小候选范围。
-    # 只要存在至少一张全量历史命中表，就只允许全量命中表继续参与选择。
-    full = [item for item in candidates if item["full_history_match"]]
-    if full:
-        cohort = full
-        stage = "full_history_cohort"
+    # 有全量历史命中章节时只保留它们，否则降级到历史产品命中数最高的章节。
+    candidate_tables = []
+    if full_history:
+        candidate_tables.extend(full_history)
     else:
-        # 没有任何全量历史命中表时，才降级到“历史产品命中数量最多”的候选。
-        # 无历史产品时所有表的命中数都是 0，因此此处不会额外缩小候选范围。
-        max_hits = max(item["matched_product_count"] for item in candidates)
-        cohort = [item for item in candidates if item["matched_product_count"] == max_hits]
-        stage = "fallback_max_history_cohort"
-    for item in cohort:
-        item["selection_stage"] = stage
+        for hit_count in range(len(prior_names), -1, -1):
+            if history_groups[hit_count]:
+                candidate_tables.extend(history_groups[hit_count])
+                break
 
-    # 第五阶段：历史筛选后只有一张候选时直接选择，不再应用损益或收入语义规则。
-    if len(cohort) == 1:
-        cohort[0]["selection_stage"] = (
-            "selected_single_full_history_candidate" if full
-            else "selected_single_fallback_history_candidate"
-        )
-        return cohort[0]["table"], scored
+    # 只有多张全量历史命中章节并列时，才检查完整损益。
+    if len(full_history) > 1:
+        for inner_lines in full_history:
+            inner_lines_text = "/".join(line["text"] for line in inner_lines)
+            if (
+                any(keyword in inner_lines_text for keyword in PROFIT_LOSS_KEYWORDS)
+                and any(keyword in inner_lines_text for keyword in REVENUE_KEYWORDS)
+                and any(keyword in inner_lines_text for keyword in COST_KEYWORDS)
+                and any(keyword in inner_lines_text for keyword in GROSS_PROFIT_KEYWORDS)
+            ):
+                return inner_lines, related_inner_lines
 
-    # 第六阶段：完整损益表优先只适用于“多张全量历史命中表并列”。
-    # full 为空时，即无历史数据或降级候选，complete_profit_loss 必定为空。
-    complete_profit_loss = [item for item in cohort if full and item["complete_profit_loss"]]
-    if len(complete_profit_loss) == 1:
-        # 只有一张完整损益表时直接选择。
-        complete_profit_loss[0]["selection_stage"] = "selected_complete_profit_loss"
-        return complete_profit_loss[0]["table"], scored
-    if complete_profit_loss:
-        # 有多张完整损益表时，只保留这些表，再进入收入语义并列判断。
-        cohort = complete_profit_loss
-        for item in cohort:
-            item["selection_stage"] = "complete_profit_loss_cohort"
+    # 仍然并列时，按关键词优先级循环，找到第一个命中章节直接返回。
+    if len(candidate_tables) > 1:
+        for keywords in TABLE_KEYWORDS:
+            for inner_lines in candidate_tables:
+                inner_lines_text = "/".join(line["text"] for line in inner_lines)
+                if any(keyword in inner_lines_text for keyword in keywords):
+                    return inner_lines, related_inner_lines
 
-    # 第七阶段：仍然并列时，依次比较完整收入语义、语义证据位置和表族优先级。
-    # key 完全相同时 max 会返回 cohort 中先出现的元素；cohort 沿用文档顺序，
-    # 因此最终保留文档中先出现的物理表，不需要页码或物理表 ID 排序。
-    selected = max(
-        cohort,
-        key=lambda item: (
-            item["semantic_level"], item["semantic_strength"], item["family_priority"]
-        ),
-    )
-    selected["selection_stage"] = "selected_semantic_family"
-    return selected["table"], scored
-
-
-def select_main_table(sections, prior_names=()):
-    """按文档顺序遍历各章节中的物理表，只返回唯一主表和完整打分日志。"""
-    tables = [table for section in sections or () for table in section.get("tables", [])]
-    return _select_tables(tables, prior_names)
+    # 完全同分时不看页码或物理表 ID，保留最先出现的章节。
+    return candidate_tables[0], related_inner_lines

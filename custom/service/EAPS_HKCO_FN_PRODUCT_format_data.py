@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """把已经抽取的事实转换为最终入库字段。"""
-from custom.service.HKCO_FN_PRODUCT_selector import identity_key
-
-
 def _number(value):
     if value is None:
         return ""
@@ -23,12 +20,12 @@ def _unit(value):
 
 def format_records(revenue_facts, metric_facts):
     metrics = {
-        (identity_key(fact["product_name"]), fact["start_date"], fact["end_date"], fact["metric"]): fact
+        (str(fact["product_name"]).strip().lower(), fact["start_date"], fact["end_date"], fact["metric"]): fact
         for fact in metric_facts or ()
     }
     records = []
     for fact in revenue_facts or ():
-        key = (identity_key(fact["product_name"]), fact["start_date"], fact["end_date"])
+        key = (str(fact["product_name"]).strip().lower(), fact["start_date"], fact["end_date"])
         cost = metrics.get((*key, "MBCOST"), {})
         gross_profit = metrics.get((*key, "GROSS_PROFIT"), {})
         records.append({

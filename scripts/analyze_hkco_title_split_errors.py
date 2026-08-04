@@ -20,14 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
-from custom.service.HKCO_FN_PRODUCT_document import (
-    EXCLUDE_TITLE_PATTERNS,
-    MEASUREMENT_TEXT,
-    SEMANTIC_TITLE,
-    SURE_TITLE_PATTERNS,
-    TITLE_PATTERNS,
-    is_title_line,
-)
+from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 
 
 _SEMANTIC_LOOKAHEAD = (
@@ -50,6 +43,13 @@ CANDIDATE_TITLE_PATTERNS = {
         re.I,
     ),
 }
+SEMANTIC_TEXT = re.compile(
+    r"收入|收益|營業額|营业额|銷售額|销售额|產品|产品|商品|貨品|货品|"
+    r"服務|服务|業務|业务|分部|地區|地区|成本|毛利|利潤|利润|損益|损益|"
+    r"財務|财务|業績|业绩|revenue|turnover|sales|product|service|segment|cost|profit",
+    re.I,
+)
+MEASUREMENT_TEXT = re.compile(r"截至|止年度|止期间|20\d{2}|人民币|港元|美元|欧元|日元|百万元|千元|单位", re.I)
 
 
 def _page_number(path: Path) -> int:
@@ -67,22 +67,15 @@ def _load_lines(info_code: str):
     return lines
 
 
-def _pattern_indexes(text, patterns):
-    return [index for index, pattern in enumerate(patterns) if pattern.search(text)]
-
-
-def _line_profile(line):
+def _line_profile(line, title_line_ids):
     text = str(line.get("text") or "").strip()
     source_type = str(line.get("source_type") or "").lower()
     return {
         "page": line.get("page_number"),
         "source_type": source_type,
         "text": text[:500],
-        "is_title_line": is_title_line(line),
-        "exclude_patterns": _pattern_indexes(text, EXCLUDE_TITLE_PATTERNS),
-        "sure_title_patterns": _pattern_indexes(text, SURE_TITLE_PATTERNS),
-        "title_patterns": _pattern_indexes(text, TITLE_PATTERNS),
-        "semantic_title": bool(SEMANTIC_TITLE.search(text)),
+        "is_title_line": id(line) in title_line_ids,
+        "semantic_title": bool(SEMANTIC_TEXT.search(text)),
         "measurement_text": bool(MEASUREMENT_TEXT.search(text)),
         "ends_with_colon": text.endswith((":", "：")),
         "length": len(text),
@@ -99,6 +92,7 @@ def _table_contexts(lines, wanted_ids):
         index for table_id in wanted_ids if (index := _table_index(table_id)) is not None
     }
     contexts = {}
+    title_line_ids = {id(group[0]) for group in get_lines_grouped(lines) if group}
     physical_index = -1
     for line_index, line in enumerate(lines):
         if not isinstance(line, dict) or not line.get("is_table"):
@@ -115,7 +109,7 @@ def _table_contexts(lines, wanted_ids):
                 continue
             text = str(previous.get("text") or "").strip()
             if text:
-                preceding.append(_line_profile(previous))
+                preceding.append(_line_profile(previous, title_line_ids))
             if len(preceding) >= 12:
                 break
         table_id = next(

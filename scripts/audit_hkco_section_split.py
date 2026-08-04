@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
-from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped, is_title_line
+from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 
 
 def _page_number(path: Path) -> int:
@@ -82,11 +82,7 @@ def audit_document(info_code, target_pages, pdf_json_root):
                 "table_pages": [line.get("page_number") for line in tables],
                 "table_count": len(tables),
             })
-        boundary_kind = (
-            "title" if group and is_title_line(group[0]) else
-            "table" if group and group[0].get("is_table") else
-            "preamble"
-        )
+        boundary_kind = "title" if group else "preamble"
         for table_index, line in enumerate(tables):
             if line.get("page_number") in target_pages:
                 line_index = next(index for index, item in enumerate(group) if item is line)
@@ -115,8 +111,6 @@ def audit_document(info_code, target_pages, pdf_json_root):
         problems.append("table_count_changed")
     if any(count != 1 for count in table_memberships.values()):
         problems.append("table_membership_not_one")
-    if any(is_title_line(line) for line in source_tables):
-        problems.append("table_used_as_title_boundary")
     missing_target_pages = sorted(set(target_pages) - set(target_pages_with_table))
     if missing_target_pages:
         problems.append("target_page_without_table")

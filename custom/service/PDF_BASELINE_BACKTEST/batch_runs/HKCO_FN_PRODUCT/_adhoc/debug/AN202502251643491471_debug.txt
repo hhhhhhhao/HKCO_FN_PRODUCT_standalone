@@ -1,0 +1,30 @@
+infocode=AN202502251643491471
+debug_file=C:\Users\Administrator\Desktop\HKCO_FN_PRODUCT_standalone\custom\service\PDF_BASELINE_BACKTEST\batch_runs\HKCO_FN_PRODUCT\_adhoc\debug\AN202502251643491471_debug.txt
+[last_period] loaded from last_data.json rows=4
+[last_period] rows=4
+
+========================================================================
+get_lines
+========================================================================
+lines=259 pages_json=37
+
+========================================================================
+sections
+========================================================================
+groups=30
+
+========================================================================
+main_table_selection
+========================================================================
+related_inner_lines=18
+
+========================================================================
+main_table_extraction
+========================================================================
+{"stage": "main_table_extraction_failed", "main_table_id": "", "section_title": "(b) 分類收益及業績", "classification": "unsupported", "row_count": 10, "fact_count": 0}
+
+========================================================================
+metric_enrichment
+========================================================================
+{"stage": "metric_enrichment_skipped", "source_tables": []}
+reason_arr=['主表抽取为空'] debug_meta={'selected_count': 1, 'source_pages': [8], 'selected_table': 'p8:5', 'classification': 'unsupported', 'selection_debug': {'related_inner_lines_count': 18}, 'extraction_debug': {'stage': 'main_table_extraction_failed', 'main_table_id': '', 'section_title': '(b) 分類收益及業績', 'classification': 'unsupported', 'row_count': 10, 'fact_count': 0}, 'metric_debug': {'stage': 'metric_enrichment_skipped', 'source_tables': []}}

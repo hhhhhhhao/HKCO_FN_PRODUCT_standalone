@@ -27,19 +27,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from custom.service.HKCO_FN_PRODUCT_document import split_into_sections
+from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 from custom.service.HKCO_FN_PRODUCT_selector import (
     historical_product_name_matches,
-    identity_key,
     select_main_table,
 )
 from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
 
 
-TOTAL_KEYS = {
-    identity_key(value)
-    for value in ("合计", "合計", "总计", "總計", "总额", "總額", "total")
-}
+TOTAL_KEYS = {"合计", "合計", "总计", "總計", "总额", "總額", "total"}
 NUMBER = re.compile(r"^\s*([（(])?\s*([+-]?[\d,]+(?:\.\d+)?)\s*[）)]?\s*$")
 
 
@@ -65,7 +61,7 @@ def _product_names(rows):
         if not isinstance(row, dict):
             continue
         name = str(row.get("PRODUCTNAME") or "").strip()
-        key = identity_key(name)
+        key = name.lower()
         if name and key and key not in TOTAL_KEYS:
             names.append(name)
     return list(dict.fromkeys(names))
@@ -97,7 +93,7 @@ def _gt_facts(rows):
         if not isinstance(row, dict):
             continue
         name = str(row.get("PRODUCTNAME") or "").strip()
-        name_key = identity_key(name)
+        name_key = name.lower()
         amount = _number(row.get("MBREVENUE"))
         if not name or not name_key or name_key in TOTAL_KEYS or amount is None:
             continue
@@ -112,7 +108,7 @@ def _positions(rows):
         if not isinstance(row, (list, tuple)):
             continue
         for column_index, cell in enumerate(row):
-            key = identity_key(cell)
+            key = str(cell or "").strip().lower()
             if key:
                 text_cells.append((row_index, column_index, key))
             amount = _number(cell)
@@ -122,7 +118,7 @@ def _positions(rows):
 
 
 def score_table(table, facts):
-    rows = [list(row) for row in table.get("rows", []) if isinstance(row, (list, tuple))]
+    rows = [list(row) for row in table.get("table", []) if isinstance(row, (list, tuple))]
     text_cells, number_cells = _positions(rows)
     name_hits = amount_hits = pair_hits = 0
     matched_facts = []
@@ -172,8 +168,11 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
     if not document_dir.is_dir():
         return {"infocode": info_code, "status": "missing_json_dir"}
     lines = _load_lines(document_dir)
-    sections = split_into_sections(lines)
-    tables = [table for section in sections for table in section["tables"]]
+    lines_grouped = get_lines_grouped(lines)
+    tables = [line for group in lines_grouped for line in group if line.get("is_table") and line.get("table")]
+    for physical_index, table in enumerate(tables):
+        table["id"] = f"p{table.get('page_number', 'x')}:{physical_index}"
+        table["page"] = table.get("page_number")
     scored = [score_table(table, facts) for table in tables]
     best_score = max((item["score"] for item in scored), default=(0, 0, 0))
     resolved = bool(
@@ -187,7 +186,14 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
     )
     targets = [item for item in scored if resolved and item["score"] == best_score]
 
-    selected, _selection = select_main_table(sections, _product_names(prior_rows))
+    selected_inner_lines, _related_inner_lines = select_main_table(lines_grouped, _product_names(prior_rows))
+    selected = next(
+        (
+            line for line in selected_inner_lines or ()
+            if line.get("is_table") and line.get("table")
+        ),
+        None,
+    )
     selected_is_target = bool(
         selected and any(item["table"]["id"] == selected["id"] for item in targets)
     )

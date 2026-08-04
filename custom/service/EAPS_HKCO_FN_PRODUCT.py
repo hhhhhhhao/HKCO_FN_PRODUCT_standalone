@@ -25,10 +25,7 @@ from custom.utils.upload_derived_data_util import upload_derived_data
 from loguru import logger
 from shared.conf.service_conf import config
 from shared.enums.error_code_enum import ErrorCodeType
-from custom.service.HKCO_FN_PRODUCT_document import (
-    get_document_period_text,
-    split_into_sections,
-)
+from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
 from custom.service.HKCO_FN_PRODUCT_extraction import extract_main_table
 from custom.service.HKCO_FN_PRODUCT_metric_enrichment import enrich_metrics
@@ -105,8 +102,9 @@ def call_derive(call_derived_id, info_code, request_id, data, if_log=True):
 # region get_lines
 def get_lines(pdf_path,json_path_page_map):
     def _clean_page_lines(page_lines, page_1based):
+        cleaned_lines = []
         for line in page_lines:
-            line['page_number'] = page_1based
+            line = {'page_number': page_1based, **line}
             if 'type' in line:
                 del line['type']
             if 'bbox' in line:
@@ -115,7 +113,8 @@ def get_lines(pdf_path,json_path_page_map):
                 del line['angle']
             if 'content' in line:
                 del line['content']
-        return page_lines
+            cleaned_lines.append(line)
+        return cleaned_lines
 
     # 本地回测：有 MinerU JSON 且 PDF 不存在时，直接按 JSON 页序建 lines
     if json_path_page_map and (not pdf_path or not os.path.isfile(pdf_path)):
@@ -324,7 +323,7 @@ def get_last_period_data(info_code, request_id, task_id):
     return []
 
 
-def _prior_context(last_period_data, document_period_text):
+def _prior_context(last_period_data):
     prior_names = []
     required_metrics = []
     end_dates = []
@@ -345,7 +344,6 @@ def _prior_context(last_period_data, document_period_text):
         "prior_product_names": prior_names,
         "prior_fiscal_month_day": fiscal_month_day,
         "required_metrics": required_metrics,
-        "document_period_text": document_period_text,
     }
 
 # region process_pdf_file
@@ -418,32 +416,25 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg(f"lines={len(lines or [])} pages_json={len(json_path_page_map or {})}")
 
                     # 1. 正则切章。
-                    sections = split_into_sections(lines)
-                    document_period_text = get_document_period_text(lines)
-                    context = _prior_context(last_period_data, document_period_text)
+                    lines_grouped = get_lines_grouped(lines)
+                    context = _prior_context(last_period_data)
                     _dbg_section("sections")
-                    _dbg(f"sections={len(sections)} tables={sum(len(s['tables']) for s in sections)}")
+                    _dbg(f"groups={len(lines_grouped)}")
 
                     # 2. 遍历章节，只选择一张主表。
-                    main_table, selection_debug = select_main_table(sections, context["prior_product_names"])
+                    main_inner_lines, related_inner_lines = select_main_table(lines_grouped, context["prior_product_names"])
                     _dbg_section("main_table_selection")
-                    for item in selection_debug:
-                        _dbg(json.dumps({
-                            key: value for key, value in item.items() if key != "table"
-                        } | {
-                            "table_id": item["table"]["id"],
-                            "section_title": item["table"]["section_title"],
-                        }, ensure_ascii=False))
+                    _dbg(f"related_inner_lines={len(related_inner_lines)}")
 
                     # 3. 分析主表结构并抽取产品、收入。
-                    main_result = extract_main_table(main_table, context)
+                    main_result = extract_main_table(main_inner_lines, context)
                     _dbg_section("main_table_extraction")
                     _dbg(json.dumps(main_result["debug"], ensure_ascii=False))
 
                     # 4. 必要时从其他物理表补成本、毛利。
                     metric_facts, metric_debug = enrich_metrics(
-                        sections,
-                        main_table,
+                        related_inner_lines,
+                        main_inner_lines,
                         main_result["facts"],
                         context["required_metrics"],
                     )
@@ -454,24 +445,35 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     result_data = format_records(main_result["facts"], metric_facts)
                     if not result_data:
                         reason_arr.append("主表抽取为空")
-                    target_items = [main_table] if main_table else []
+                    target_items = [main_inner_lines] if main_inner_lines else []
                     source_pages = []
-                    if main_table and main_table.get("page") is not None:
-                        source_pages.append(main_table["page"])
-                    for section in sections:
-                        for table in section["tables"]:
-                            if table["id"] in metric_debug.get("source_tables", []) and table.get("page") not in source_pages:
-                                source_pages.append(table.get("page"))
+                    if main_inner_lines and main_inner_lines[0].get("page_number") is not None:
+                        source_pages.append(main_inner_lines[0]["page_number"])
+                    selected_physical_table = next(
+                        (
+                            line for line in main_inner_lines or ()
+                            if line.get("is_table") and line.get("table")
+                        ),
+                        None,
+                    )
+                    selected_table = ""
+                    physical_index = 0
+                    for inner_lines in related_inner_lines:
+                        for table in inner_lines:
+                            if not table.get("is_table") or not table.get("table"):
+                                continue
+                            table_id = f"p{table.get('page_number', 'x')}:{physical_index}"
+                            physical_index += 1
+                            if table is selected_physical_table:
+                                selected_table = table_id
+                            if table_id in metric_debug.get("source_tables", []) and table.get("page_number") not in source_pages:
+                                source_pages.append(table.get("page_number"))
                     debug_meta = {
                         "selected_count": len(target_items) + len(metric_debug.get("source_tables", [])),
                         "source_pages": source_pages,
-                        "selected_table": main_table.get("id", "") if main_table else "",
+                        "selected_table": selected_table,
                         "classification": main_result["classification"],
-                        "selection_debug": [
-                            {key: value for key, value in item.items() if key != "table"}
-                            | {"table_id": item["table"]["id"]}
-                            for item in selection_debug
-                        ],
+                        "selection_debug": {"related_inner_lines_count": len(related_inner_lines)},
                         "extraction_debug": main_result["debug"],
                         "metric_debug": metric_debug,
                     }
@@ -689,7 +691,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202603201820676603"
+    code = "AN202502251643491471"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
