@@ -218,11 +218,6 @@ def load_extractor(task_dir: Path, schema: Optional[Mapping[str, Any]] = None):
     return mod
 
 
-def load_baseline(task_dir: Path, schema: Optional[Mapping[str, Any]] = None):
-    """兼容旧名；同 load_extractor。"""
-    return load_extractor(task_dir, schema)
-
-
 def local_pdf_href(pdf_path: str) -> str:
     """报告里用本地 file:// 链接打开 PDF；文件不存在时返回空。"""
     p = Path(pdf_path)
@@ -311,29 +306,6 @@ def extract_pipeline(result: Mapping[str, Any], schema: Mapping[str, Any]) -> Di
     return {}
 
 
-def infer_pipeline_stage(
-    result: Mapping[str, Any],
-    records: Sequence[Mapping[str, Any]],
-    err: str,
-) -> Dict[str, Any]:
-    """baseline 未写 pipeline 时的兜底分类。"""
-    if str(result.get("status") or "") == "failed":
-        return {
-            "stage": "exception",
-            "stage_label": "运行异常",
-            "message": err or str(result.get("error_message") or "failed"),
-        }
-    if records:
-        return {"stage": "success", "stage_label": "成功", "message": ""}
-    if str(result.get("status") or "") == "no_data":
-        return {
-            "stage": "empty_output",
-            "stage_label": "无输出",
-            "message": err or str(result.get("error_message") or "无抽取结果"),
-        }
-    return {"stage": "unknown", "stage_label": "未知", "message": err}
-
-
 # ---------- compare ----------
 
 def resolve_fields(schema: Mapping[str, Any]) -> List[str]:
@@ -350,15 +322,15 @@ def _norm_match_text(v: Any) -> str:
         s = s.replace(ch, "-")
     s = s.lstrip("-").strip()
     try:
-        from custom.service.EAPS_HKCO_FN_PRODUCT import _norm_product_name
+        from custom.service.HKCO_FN_PRODUCT_selector import identity_key
 
-        return _norm_product_name(s)
+        return identity_key(s)
     except Exception:
         return "".join(s.split())
 
 
-def _product_names_compatible(a: Any, b: Any) -> bool:
-    """产品名兼容：归一后相等，或一方 in 另一方（GT 可省略前后缀）。"""
+def _product_names_match(a: Any, b: Any) -> bool:
+    """回测产品名匹配：归一后相等，或一方包含另一方。"""
     na, nb = _norm_match_text(a), _norm_match_text(b)
     if not na or not nb:
         return na == nb
@@ -377,11 +349,11 @@ def _product_match_score(a: Any, b: Any) -> int:
     return -1
 
 
-def _compatible_gt_products(
+def _matching_gt_products(
     pred_pn: str,
     gt_periods_by_product: Mapping[str, set],
 ) -> List[str]:
-    return [gt_pn for gt_pn in gt_periods_by_product if _product_names_compatible(pred_pn, gt_pn)]
+    return [gt_pn for gt_pn in gt_periods_by_product if _product_names_match(pred_pn, gt_pn)]
 
 
 def _row_has_numeric_anchor(row: Mapping[str, Any], value_fields: Sequence[str]) -> bool:
@@ -575,18 +547,18 @@ def _should_forgive_extra_period(
     if not pred_pn or not period_key_fields:
         return False
     pred_period = make_key(pred_row, period_key_fields, tol)
-    compatible_gt = set(_compatible_gt_products(pred_pn, gt_periods_by_product))
+    matching_gt = set(_matching_gt_products(pred_pn, gt_periods_by_product))
     for alias in (pred_to_gt_aliases or {}).get(pred_pn, ()):
-        compatible_gt.add(alias)
-        compatible_gt.update(_compatible_gt_products(alias, gt_periods_by_product))
-    if compatible_gt:
+        matching_gt.add(alias)
+        matching_gt.update(_matching_gt_products(alias, gt_periods_by_product))
+    if matching_gt:
         if any(
             pred_period in gt_periods_by_product.get(gt_pn, ())
-            for gt_pn in compatible_gt
+            for gt_pn in matching_gt
         ):
             return False
-        # A. GT 已有兼容/别名产品名，只是多了历史期
-        if any(gt_pn in gt_periods_by_product for gt_pn in compatible_gt):
+        # A. GT 已有匹配名称或显式别名，只是多了历史期。
+        if any(gt_pn in gt_periods_by_product for gt_pn in matching_gt):
             return True
     # B. GT 仅收录单一报告期；合法产品的历史期（含当年停披露项）
     if not gt_only_single_period or gt_latest_report_end is None:
@@ -1054,8 +1026,6 @@ ROOT_CAUSE_DESC = {
     "value_wrong": "抓错：产品行定位对了，字段值不一致",
     "extra": "多抓：预测有，GT 无",
     "forgiven_gt_amount_subset": "豁免：单表抽取且 GT 金额均被覆盖",
-    # 兼容旧批次
-    "no_extract": "无输出（旧标签，见 pipeline 阶段）",
 }
 
 
@@ -1546,20 +1516,17 @@ def _finalize_job(
         (run_dir / "logs" / f"{code}.traceback.txt").write_text(tb, encoding="utf-8")
 
     pipeline = extract_pipeline(result, schema)
+    if not pipeline:
+        raise ValueError(f"{code} 抽取结果缺少 data.pipeline")
     if str(result.get("status") or "") == "failed":
         records = []
         err = err or str(result.get("error_message") or result.get("status"))
-        pipeline = infer_pipeline_stage(result, records, err)
     elif result.get("status") == "success":
         records = extract_records(result, schema)
         err = ""
-        if not pipeline:
-            pipeline = infer_pipeline_stage(result, records, err)
     else:
         records = extract_records(result, schema)
         err = err or str(result.get("error_message") or result.get("status") or "")
-        if not pipeline:
-            pipeline = infer_pipeline_stage(result, records, err)
 
     write_json(inter_dir / f"{code}_extract.json", result)
     cmp = compare_one(records, gt.get(code, []), code, schema, pipeline=pipeline)
@@ -1622,7 +1589,7 @@ def run_backtest(
         "mineru_json_base_dir": schema.get("mineru_json_base_dir", ""),
         "run_dir": str(run_dir),
         "debug_dir": str(debug_dir),
-        "pipeline_debug": bool(schema.get("pipeline_debug", True)),
+        "debug_enabled": bool(schema.get("debug_enabled", True)),
     }
 
     chunks = _chunk_jobs(jobs, workers)

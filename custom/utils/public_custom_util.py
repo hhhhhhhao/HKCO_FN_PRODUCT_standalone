@@ -2,8 +2,8 @@
 """Stub: Public custom utility functions used by EAPS_HKCO_FN_PRODUCT.
 
 In backtest mode, most SQL/task-center calls are no-ops or return empty data.
-call_derived_data_interface is used by get_last_period_data — returns Status=False
-to trigger fallback (empty last-period data), which is correct for standalone backtest.
+call_derived_data_interface is used by get_last_period_data and returns Status=False
+because the standalone project has no production database connection.
 """
 
 

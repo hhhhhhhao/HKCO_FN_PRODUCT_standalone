@@ -7,9 +7,9 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "cwd": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone",
+            "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone"
+                "PYTHONPATH": "${workspaceFolder}"
             }
         }
     ]

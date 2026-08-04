@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Stub: pdfplumber wrapper compatible with the original ExtendPlumber API."""
+"""Standalone pdfplumber context-manager adapter."""
 
 
 class ExtendPlumber:
-    """Drop-in replacement for the original ExtendPlumber pdfplumber wrapper."""
+    """Expose the context-manager API used by the extraction entrypoint."""
 
     _pdf = None
 

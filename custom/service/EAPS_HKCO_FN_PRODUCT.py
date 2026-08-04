@@ -26,15 +26,20 @@ from loguru import logger
 from shared.conf.service_conf import config
 from shared.enums.error_code_enum import ErrorCodeType
 from custom.service.HKCO_FN_PRODUCT_document import (
-    get_all_source_tables,
     get_document_period_text,
+    split_into_sections,
 )
-from custom.service.HKCO_FN_PRODUCT_identity import identity_key as _norm_product_name
+from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
+from custom.service.HKCO_FN_PRODUCT_extraction import extract_main_table
+from custom.service.HKCO_FN_PRODUCT_metric_enrichment import enrich_metrics
+from custom.service.EAPS_HKCO_FN_PRODUCT_format_data import format_records
 
 # region mineru ocr
 def parse_mineru_result_to_lines(pages_data,page_num):
     lines = []
     for line in pages_data:
+        # source_type 只保留给 debug；章节切割只使用 document 中的正则。
+        line['source_type'] = line.get('type', '')
         if line.get('type') in ['page_number', 'aside_text','image']:
             continue
         if line.get('type') in ['footer'] and not re.search(r'后附.*部分',line.get('content')):
@@ -45,6 +50,9 @@ def parse_mineru_result_to_lines(pages_data,page_num):
             table = format_mineru_table(fullwidth_to_halfwidth(line.get('content')))
             line['table'] = table
             line['is_table'] = True
+        bbox = line.get('bbox')
+        if line.get('x0') is None and isinstance(bbox, (list, tuple)) and bbox:
+            line['x0'] = bbox[0]
         line['page_number'] = page_num
         line['text'] = fullwidth_to_halfwidth(line['content'] )
 
@@ -140,19 +148,19 @@ def fullwidth_to_halfwidth(s):
     return "".join((unicodedata.normalize("NFKC", char) if unicodedata.east_asian_width(char) in ["F", "W"] else char) for char in s)
 # endregion
 
-# region pipeline debug dump
+# region process debug dump
 # 回测时 configs["debug_dir"] = batch_runs/HKCO_FN_PRODUCT/<stamp>/debug
-# 每篇写 {infocode}_pipeline.txt，便于 AI/人工看定位与定表。
-_PIPELINE_DBG = {"path": None, "lines": [], "enabled": False}
+# 每篇写 {infocode}_debug.txt，便于 AI/人工逐阶段定位问题。
+_PROCESS_DEBUG = {"path": None, "lines": [], "enabled": False}
 
 
 def _dbg_reset(info_code, configs=None):
-    """仅 configs.pipeline_debug=True 时落盘；回测默认关闭，避免每篇写 txt 拖垮并发。"""
-    _PIPELINE_DBG["lines"] = []
-    enabled = bool(isinstance(configs, dict) and configs.get("pipeline_debug"))
-    _PIPELINE_DBG["enabled"] = enabled
+    """仅 configs.debug_enabled=True 时落盘；回测默认关闭，避免并发写文件。"""
+    _PROCESS_DEBUG["lines"] = []
+    enabled = bool(isinstance(configs, dict) and configs.get("debug_enabled"))
+    _PROCESS_DEBUG["enabled"] = enabled
     if not enabled:
-        _PIPELINE_DBG["path"] = None
+        _PROCESS_DEBUG["path"] = None
         return
     debug_dir = None
     if isinstance(configs, dict):
@@ -167,19 +175,19 @@ def _dbg_reset(info_code, configs=None):
             "debug",
         )
     os.makedirs(debug_dir, exist_ok=True)
-    _PIPELINE_DBG["path"] = os.path.join(debug_dir, f"{info_code}_pipeline.txt")
+    _PROCESS_DEBUG["path"] = os.path.join(debug_dir, f"{info_code}_debug.txt")
     _dbg(f"infocode={info_code}")
-    _dbg(f"debug_file={_PIPELINE_DBG['path']}")
+    _dbg(f"debug_file={_PROCESS_DEBUG['path']}")
 
 
 def _dbg(msg=""):
-    if not _PIPELINE_DBG.get("enabled"):
+    if not _PROCESS_DEBUG.get("enabled"):
         return
-    _PIPELINE_DBG["lines"].append(str(msg))
+    _PROCESS_DEBUG["lines"].append(str(msg))
 
 
 def _dbg_section(title):
-    if not _PIPELINE_DBG.get("enabled"):
+    if not _PROCESS_DEBUG.get("enabled"):
         return
     _dbg("")
     _dbg("=" * 72)
@@ -190,17 +198,17 @@ def _dbg_section(title):
 
 
 def _dbg_flush():
-    if not _PIPELINE_DBG.get("enabled"):
+    if not _PROCESS_DEBUG.get("enabled"):
         return
-    path = _PIPELINE_DBG.get("path")
+    path = _PROCESS_DEBUG.get("path")
     if not path:
         return
     try:
         with open(path, "w", encoding="utf-8") as fp:
-            fp.write("\n".join(_PIPELINE_DBG.get("lines") or []))
+            fp.write("\n".join(_PROCESS_DEBUG.get("lines") or []))
             fp.write("\n")
     except Exception as ex:
-        logger.warning("pipeline debug 落盘失败: %s", ex)
+        logger.warning("process debug 落盘失败: %s", ex)
 
 
 # endregion
@@ -241,18 +249,18 @@ def _build_extract_result(
     target_tables=None,
     reason_arr=None,
     err="",
-    pipe_meta=None,
+    debug_meta=None,
 ):
     """组装 run_backtest 认的 extract_init 返回结构。
 
     selected_count：定表实际来源表数（单表=1；多表合并>1），供回测金额子集豁免。
     """
     records = _result_data_to_records(result_data)
-    meta = dict(pipe_meta or {})
+    meta = dict(debug_meta or {})
     source_pages = list(meta.get("source_pages") or [])
     if not source_pages:
         for t in target_tables or []:
-            pn = t.get("page_number") if isinstance(t, dict) else None
+            pn = t.get("page") if isinstance(t, dict) else None
             if pn is not None and pn not in source_pages:
                 source_pages.append(pn)
     if "selected_count" in meta:
@@ -288,7 +296,7 @@ def _build_extract_result(
         "segment_id": str(request_id or ""),
         "data": {
             "records": records,
-            "pipeline": {
+            "debug": {
                 **meta,
                 "stage": stage,
                 "stage_label": stage,
@@ -315,12 +323,33 @@ def get_last_period_data(info_code, request_id, task_id):
                 return data
     return []
 
+
+def _prior_context(last_period_data, document_period_text):
+    prior_names = []
+    required_metrics = []
+    end_dates = []
+    for item in last_period_data or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("PRODUCTNAME") or "").strip()
+        if name and name not in {"合计", "合計"}:
+            prior_names.append(name)
+        for metric in ("MBCOST", "GROSS_PROFIT"):
+            if str(item.get(metric) or "").strip() and metric not in required_metrics:
+                required_metrics.append(metric)
+        match = re.search(r"20\d{2}[/\-](\d{1,2})[/\-](\d{1,2})", str(item.get("REPORTDATE") or ""))
+        if match:
+            end_dates.append(tuple(map(int, match.groups())))
+    fiscal_month_day = max(set(end_dates), key=end_dates.count) if end_dates else ()
+    return {
+        "prior_product_names": prior_names,
+        "prior_fiscal_month_day": fiscal_month_day,
+        "required_metrics": required_metrics,
+        "document_period_text": document_period_text,
+    }
+
 # region process_pdf_file
 def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result_info, configs):
-    # Lazy import to break circular dependency
-    from custom.service.EAPS_HKCO_FN_PRODUCT_get_res import get_res
-    from custom.service.EAPS_HKCO_FN_PRODUCT_format_data import format_data
-
     if platform.system().lower() == "windows" and config.profile == "dev":
         if_callback = False
     else:
@@ -372,12 +401,12 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                 title_find_page = 0
                 report_path = ""
                 reason_arr = []
-                pipe_meta = {"selected_count": 0, "source_pages": []}
+                debug_meta = {"selected_count": 0, "source_pages": []}
                 pdf_path, json_path_page_map = get_all_paths(pdf_path, configs)
 
                 _dbg_reset(info_code, configs)
                 try:
-                    # 上期数据：生产必取；回测也取（失败则空，走结构量兜底）
+                    # 上期数据决定主表连续性和本期需要延续的指标字段；没有上期时使用固定表类优先级。
                     last_period_data = get_last_period_data(info_code, request_id, task_id)
                     _dbg(
                         f"[last_period] rows={len(last_period_data) if isinstance(last_period_data, list) else type(last_period_data)}"
@@ -388,27 +417,68 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg_section("get_lines")
                     _dbg(f"lines={len(lines or [])} pages_json={len(json_path_page_map or {})}")
 
-                    # 收入计划器直接接收公告中的独立原始表；这里不切章、不选表。
-                    source_tables = get_all_source_tables(lines)
-                    target_items = source_tables
+                    # 1. 正则切章。
+                    sections = split_into_sections(lines)
                     document_period_text = get_document_period_text(lines)
-                    # 新管线内部完成收入计划发现；不存在入口结果的主事实地位。
-                    res = get_res(
-                        None,
-                        info_code,
-                        reason_arr,
-                        notice_date=notice_date,
-                        last_period_data=last_period_data,
-                        source_tables=source_tables,
-                        document_period_text=document_period_text,
-                    )
+                    context = _prior_context(last_period_data, document_period_text)
+                    _dbg_section("sections")
+                    _dbg(f"sections={len(sections)} tables={sum(len(s['tables']) for s in sections)}")
 
-                    # 格式化入库字段
-                    result_data, reason_arr, pipe_meta = format_data(
-                        res, derived_id, info_code, notice_date, request_id, task_id, reason_arr,
-                        last_period_data=last_period_data,
+                    # 2. 遍历章节，只选择一张主表。
+                    main_table, selection_debug = select_main_table(
+                        sections, context["prior_product_names"]
                     )
-                    _dbg(f"reason_arr={reason_arr} pipe_meta={pipe_meta}")
+                    _dbg_section("main_table_selection")
+                    for item in selection_debug:
+                        _dbg(json.dumps({
+                            key: value for key, value in item.items() if key != "table"
+                        } | {
+                            "table_id": item["table"]["id"],
+                            "section_title": item["table"]["section_title"],
+                        }, ensure_ascii=False))
+
+                    # 3. 分析主表结构并抽取产品、收入。
+                    main_result = extract_main_table(main_table, context)
+                    _dbg_section("main_table_extraction")
+                    _dbg(json.dumps(main_result["debug"], ensure_ascii=False))
+
+                    # 4. 必要时从其他物理表补成本、毛利。
+                    metric_facts, metric_debug = enrich_metrics(
+                        sections,
+                        main_table,
+                        main_result["facts"],
+                        context["required_metrics"],
+                    )
+                    _dbg_section("metric_enrichment")
+                    _dbg(json.dumps(metric_debug, ensure_ascii=False))
+
+                    # 5. 格式化最终入库字段。
+                    result_data = format_records(main_result["facts"], metric_facts)
+                    if not result_data:
+                        reason_arr.append("主表抽取为空")
+                    target_items = [main_table] if main_table else []
+                    source_pages = []
+                    if main_table and main_table.get("page") is not None:
+                        source_pages.append(main_table["page"])
+                    for section in sections:
+                        for table in section["tables"]:
+                            if table["id"] in metric_debug.get("source_tables", []) and table.get("page") not in source_pages:
+                                source_pages.append(table.get("page"))
+                    debug_meta = {
+                        "selected_count": len(target_items) + len(metric_debug.get("source_tables", [])),
+                        "source_pages": source_pages,
+                        "selected_table": main_table.get("id", "") if main_table else "",
+                        "classification": main_result["classification"],
+                        "selection_debug": [
+                            {key: value for key, value in item.items() if key != "table"}
+                            | {"table_id": item["table"]["id"]}
+                            for item in selection_debug
+                        ],
+                        "extraction_debug": main_result["debug"],
+                        "metric_debug": metric_debug,
+                    }
+
+                    _dbg(f"reason_arr={reason_arr} debug_meta={debug_meta}")
                 finally:
                     _dbg_flush()
 
@@ -418,7 +488,7 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     result_data,
                     target_tables=target_items,
                     reason_arr=reason_arr,
-                    pipe_meta=pipe_meta,
+                    debug_meta=debug_meta,
                 )
 
                 # 回测：只返回抽取结果，不衍生不入库
@@ -546,46 +616,17 @@ def get_all_paths(src_file_path, configs):
                     if m:
                         json_path_page_map[int(m.group(1))] = os.path.join(item_path, f)
 
-    # 兜底：configs 里平台下发的 mineru 路径
-    if not json_path_page_map and configs:
-        for key in (
-            'mineru_local_file_full_path_list',
-            'mineru_all_local_file_full_path_list',
-            'mineru_hybrid_local_file_full_path_list',
-        ):
-            file_list = configs.get(key)
-            if not file_list:
-                continue
-            for json_path in file_list:
-                m = re.compile(r"_(\d+)(.json)").search(json_path)
-                if m:
-                    json_path_page_map[int(m.group(1))] = json_path
-            if json_path_page_map:
-                break
-
-    # 本地调试兜底：json 在 {mineru_json_base_dir}/{infocode}/
-    if not json_path_page_map:
+    # 显式目录输入：{mineru_json_base_dir}/{infocode}/。
+    if not json_path_page_map and configs and configs.get("mineru_json_base_dir"):
         info_code = os.path.splitext(os.path.basename(pdf_path))[0]
-        bases = []
-        if configs and configs.get("mineru_json_base_dir"):
-            bases.append(str(configs.get("mineru_json_base_dir")))
-        # Optional deployment fallback.  Avoid a hard-coded drive so the same
-        # code works on Windows and macOS.
-        env_base = os.environ.get("HKCO_MINERU_JSON_DIR", "").strip()
-        if env_base:
-            bases.append(env_base)
-        for base in bases:
-            json_dir = os.path.join(base, info_code)
-            if not os.path.isdir(json_dir):
-                continue
+        json_dir = os.path.join(str(configs["mineru_json_base_dir"]), info_code)
+        if os.path.isdir(json_dir):
             for f in os.listdir(json_dir):
                 if not f.endswith('.json') or 'over' in f:
                     continue
                 m = re.compile(r"AN\d{18}_(.*?)(.json)").search(f)
                 if m:
                     json_path_page_map[int(m.group(1))] = os.path.join(json_dir, f)
-            if json_path_page_map:
-                break
 
     json_path_page_map = dict(sorted(json_path_page_map.items(), key=lambda x: x[0]))
     logger.info("get_all_paths pdf=%s json_pages=%s" % (pdf_path, len(json_path_page_map)))
@@ -613,7 +654,7 @@ def extract_init(pdf_path, info_code, request_id, configs=None, task_info_list=N
         "status": "failed",
         "infocode": info_code,
         "segment_id": str(request_id or ""),
-        "data": {"records": [], "pipeline": {"stage": "empty_output", "message": "process_pdf_file 无返回"}},
+        "data": {"records": [], "debug": {"stage": "empty_output", "message": "process_pdf_file 无返回"}},
         "error_message": "process_pdf_file 无返回",
     }
 
@@ -650,10 +691,10 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202502211643369388"
+    code = "AN202503251647229111"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
-        "pipeline_debug": True,
+        "debug_enabled": True,
     })
     print(result)

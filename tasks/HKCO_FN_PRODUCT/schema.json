@@ -12,6 +12,8 @@
     "UNIT"
   ],
   "data_path": "data.records",
+  "pipeline_path": "data.debug",
+  "debug_enabled": true,
   "num_tol": 0.0001,
   "match_key_fields": [
     "STARTDATE",
