@@ -13,12 +13,13 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import os
 import re
 import sys
-from collections import Counter
+from collections import Counter, deque
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -37,6 +38,13 @@ from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
 
 TOTAL_KEYS = {"合计", "合計", "总计", "總計", "总额", "總額", "total"}
 NUMBER = re.compile(r"^\s*([（(])?\s*([+-]?[\d,]+(?:\.\d+)?)\s*[）)]?\s*$")
+TABLE_NAME_SEMANTICS = re.compile(
+    r"收入|收益|營業額|营业额|營收|营收|銷售|销售|"
+    r"分部|分類|分类|分拆|分列|細分|细分|明細|明细|"
+    r"產品|产品|服務|服务|業務|业务|經營|经营|營運|营运|"
+    r"revenue|turnover|sales|segment|product|service",
+    re.IGNORECASE,
+)
 
 
 def _page_number(path: Path) -> int:
@@ -53,6 +61,36 @@ def _load_lines(document_dir: Path):
         payload = json.loads(path.read_text(encoding="utf-8-sig"))
         lines.extend(parse_mineru_result_to_lines(payload, page))
     return lines
+
+
+def _table_titles(lines):
+    """返回表前短窗口内最近的业务语义标题，跳过日期、单位等元数据。"""
+    titles = {}
+    recent_text = deque(maxlen=8)
+    for line in lines:
+        if line.get("is_table") and line.get("table"):
+            semantic_title = next(
+                (
+                    item["text"]
+                    for item in reversed(recent_text)
+                    if TABLE_NAME_SEMANTICS.search(item["text"])
+                ),
+                "",
+            )
+            source_title = next(
+                (
+                    item["text"]
+                    for item in reversed(recent_text)
+                    if item["source_type"] == "title"
+                ),
+                "",
+            )
+            titles[id(line)] = semantic_title or source_title
+            continue
+        text = str(line.get("text") or "").strip()
+        if text:
+            recent_text.append({"text": text, "source_type": line.get("source_type")})
+    return titles
 
 
 def _product_names(rows):
@@ -169,6 +207,7 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
         return {"infocode": info_code, "status": "missing_json_dir"}
     lines = _load_lines(document_dir)
     lines_grouped = get_lines_grouped(lines)
+    table_titles = _table_titles(lines)
     tables = [line for group in lines_grouped for line in group if line.get("is_table") and line.get("table")]
     section_titles = {
         id(line): group[0]["text"]
@@ -224,7 +263,7 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
                 "table_id": item["table"]["id"],
                 "page": item["table"]["page"],
                 "section_title": section_titles[id(item["table"])],
-                "title": "",
+                "title": table_titles[id(item["table"])],
                 "score": list(item["score"]),
                 "matched_facts": item["matched_facts"],
             }
@@ -249,6 +288,11 @@ def main():
     parser.add_argument(
         "--output",
         default=str(ROOT / "analysis" / "HKCO_FN_PRODUCT" / "gt_target_tables.json"),
+    )
+    parser.add_argument(
+        "--names-output",
+        default=str(ROOT / "analysis" / "HKCO_FN_PRODUCT" / "gt_target_table_names.csv"),
+        help="GT 目标物理表的近邻表名清单",
     )
     args = parser.parse_args()
     if args.workers < 1:
@@ -284,9 +328,32 @@ def main():
     output.write_text(
         json.dumps({"summary": summary, "documents": documents}, ensure_ascii=False, indent=2),
         encoding="utf-8",
+        newline="\n",
     )
+    title_counts = Counter(
+        target["title"].strip()
+        for document in resolved
+        for target in document["targets"]
+        if target["title"].strip()
+    )
+    section_title_counts = Counter(
+        target["section_title"].strip()
+        for document in resolved
+        for target in document["targets"]
+        if target["section_title"].strip()
+    )
+    names_output = Path(args.names_output)
+    names_output.parent.mkdir(parents=True, exist_ok=True)
+    with names_output.open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["name_type", "table_name", "target_count"])
+        for name, count in sorted(title_counts.items(), key=lambda item: (-item[1], item[0])):
+            writer.writerow(["nearest_title", name, count])
+        for name, count in sorted(section_title_counts.items(), key=lambda item: (-item[1], item[0])):
+            writer.writerow(["section_title", name, count])
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     print(output)
+    print(names_output)
 
 
 if __name__ == "__main__":
