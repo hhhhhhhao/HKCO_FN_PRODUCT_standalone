@@ -1,0 +1,6995 @@
+{
+  "classification_source": "analysis/HKCO_FN_PRODUCT/coarse_table_classes.json",
+  "scope": "revenue",
+  "eligibility": "eligible",
+  "class_rank": 1,
+  "class": "primary_revenue_detail|row_period|product_service|eligible",
+  "class_table_count": 591,
+  "class_doc_count": 426,
+  "sample_count": 50,
+  "summary": {
+    "title_families": {
+      "收益分析如下": 19,
+      "收入分析如下": 13,
+      "a分類收入資料": 10,
+      "i分拆收入資料": 8,
+      "收入和成本分析": 8,
+      "本集團的收入分析如下": 7,
+      "a分拆收入資料": 6,
+      "a分拆收益資料": 6,
+      "收益及分類資料": 6,
+      "a收入分拆資料": 5,
+      "i分類收入資料": 5,
+      "收入的分析如下": 5,
+      "本集團的收益分析如下": 5,
+      "i分拆收益資料": 4,
+      "i收入分拆資料": 4,
+      "i收益分拆資料": 4,
+      "截至年及年月日止年度本集團按類別劃分的收入分析如下": 4,
+      "本集團之收入分析如下": 4,
+      "a分類收入信息": 3,
+      "a收益分拆資料": 3,
+      "a收益資料劃分": 3,
+      "b收入分拆": 3,
+      "i分拆來自客户合約的收入": 3,
+      "i分類收入信息": 3,
+      "i客户合約收益分拆": 3,
+      "客户合約收益分拆": 3,
+      "收入包括提供流動通訊服務以及手機及配件銷售之收入收入分析如下": 3,
+      "收益的分析如下": 3,
+      "有關收入的分析如下": 3,
+      "本集團之收益分析如下": 3,
+      "a來自客户合約收益明細": 2,
+      "a分類收益資料": 2,
+      "a收入分類資料": 2,
+      "a收入按類別分析": 2,
+      "a收入資料劃分": 2,
+      "a收益的分類資料": 2,
+      "a細分收入資料": 2,
+      "i分類收益資料": 2,
+      "i收入分類資料": 2,
+      "i細分收入資料": 2,
+      "i細分收益資料": 2,
+      "下表載列所示期間不同類別保險產品的保險服務收入明細": 2,
+      "下表載列本集團按業務分類劃分的收益明細": 2,
+      "下表載列本集團的物業管理服務收入明細": 2,
+      "以下為本集團按呈報及經營分類劃分之收入及業績分析": 2,
+      "以下為本集團按報告分類劃分之營業額及業績分析": 2,
+      "來自客户合約收益之細分": 2,
+      "保險服務收入": 2,
+      "分拆收入資料": 2,
+      "分服務及產品收入分類如下": 2
+    },
+    "period_layouts": {
+      "multi_period": 492,
+      "period_unstated": 71,
+      "single_period": 11,
+      "repeated_period_columns": 17
+    },
+    "measurements": {
+      "currency_and_unit": 530,
+      "unit_only": 13,
+      "measurement_unstated": 45,
+      "currency_only": 3
+    },
+    "prior_alignment": {
+      "prior_no_hit": 196,
+      "prior_row_full": 217,
+      "prior_row_partial": 156,
+      "prior_row_high": 20,
+      "no_prior": 2
+    },
+    "relations": {
+      "standalone": 426,
+      "period_sibling_family": 119,
+      "continuation_family": 32,
+      "same_title_family": 14
+    },
+    "document_classes": {
+      "multi_axis|business+product_service": 189,
+      "period_sibling_family|product_service": 120,
+      "single|row_period|product_service": 57,
+      "multiple_mixed_geometry|product_service": 107,
+      "same_title_family|product_service": 26,
+      "continuation_family|product_service": 32,
+      "multiple_same_geometry|row_period|product_service": 60
+    }
+  },
+  "tables": [
+    {
+      "infocode": "AN202503251647411107",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p10:6",
+        "page": 10,
+        "title": "收益分析如下:",
+        "title_family": "收益分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 17,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至十二月三十一日止年度",
+          "截至十二月三十一日止年度"
+        ],
+        [
+          "二零二四年人民幣千元",
+          "二零二三年人民幣千元"
+        ],
+        [
+          "銷售模具",
+          "",
+          ""
+        ],
+        [
+          "汽車模具",
+          "182,452",
+          "164,911"
+        ],
+        [
+          "電器產品模具",
+          "38,005",
+          "38,368"
+        ],
+        [
+          "其他模具",
+          "2,199",
+          "720"
+        ],
+        [
+          "小計",
+          "222,656",
+          "203,999"
+        ],
+        [
+          "部件加工服務",
+          "13,082",
+          "10,863"
+        ],
+        [
+          "其他",
+          "1,908",
+          "3,836"
+        ],
+        [
+          "總計",
+          "237,646",
+          "218,698"
+        ],
+        [
+          "指下列項目:",
+          "",
+          ""
+        ],
+        [
+          "於某一個時間點轉移的貨品及服務",
+          "237,646",
+          "218,698"
+        ],
+        [
+          "指下列項目:",
+          "",
+          ""
+        ],
+        [
+          "地理市場",
+          "",
+          ""
+        ],
+        [
+          "中國內地",
+          "215,447",
+          "209,253"
+        ],
+        [
+          "海外",
+          "22,199",
+          "9,445"
+        ],
+        [
+          "總計",
+          "237,646",
+          "218,698"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務概要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p10:7",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p12:9",
+          "title": "本集團的每份合約只有一項履約責任,而所有收益均於報告期的某一個時間點確認。於報告期末,與尚未達成的現有合約內的履約責任有關的交易價格如下:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:12",
+          "title": "根據開曼群島的規則及法規,本公司無須繳納開曼群島任何所得稅。中國應課稅溢利稅項按適用中國企業所得稅(「企業所得稅」)稅率25%計算。勛龍(蘇州)獲認可為高新技術企業,並享有優惠所得稅率15%。勛展、勛厚及昆山龍駿獲認可為小微企業(「小微企業」),且由於其個別應課稅收入低於人民幣1百萬元,故享有應課稅收入減免75%及優惠所得稅率20%。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:13",
+          "title": "根據開曼群島的規則及法規,本公司無須繳納開曼群島任何所得稅。中國應課稅溢利稅項按適用中國企業所得稅(「企業所得稅」)稅率25%計算。勛龍(蘇州)獲認可為高新技術企業,並享有優惠所得稅率15%。勛展、勛厚及昆山龍駿獲認可為小微企業(「小微企業」),且由於其個別應課稅收入低於人民幣1百萬元,故享有應課稅收入減免75%及優惠所得稅率20%。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p25:30",
+          "title": "下表載列本集團按業務分類劃分的收益明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503211645650058",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p9:6",
+        "page": 9,
+        "title": "收入分析如下:",
+        "title_family": "收入分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 8,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2024年\n人民幣千元",
+          "2023年\n人民幣千元"
+        ],
+        [
+          "客户合約收入",
+          "",
+          ""
+        ],
+        [
+          "線下銷售",
+          "2,084,861",
+          "769,071"
+        ],
+        [
+          "經銷銷售*",
+          "2,062,865",
+          "732,700"
+        ],
+        [
+          "委託銷售",
+          "21,996",
+          "36,371"
+        ],
+        [
+          "線上銷售",
+          "155,675",
+          "106,249"
+        ],
+        [
+          "其他",
+          "393",
+          "1,366"
+        ],
+        [
+          "",
+          "2,240,929",
+          "876,686"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p2:1",
+          "title": "財務資料",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p9:7",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p12:12",
+          "title": "根據開曼群島現行法律,本公司毋須就收益或資本收益繳納稅項。此外,本公司向其股東派付股息後,就於開曼群島註冊成立的本公司而言,毋須繳納預扣稅。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p12:13",
+          "title": "根據開曼群島現行法律,本公司毋須就收益或資本收益繳納稅項。此外,本公司向其股東派付股息後,就於開曼群島註冊成立的本公司而言,毋須繳納預扣稅。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p12:14",
+          "title": "根據開曼群島現行法律,本公司毋須就收益或資本收益繳納稅項。此外,本公司向其股東派付股息後,就於開曼群島註冊成立的本公司而言,毋須繳納預扣稅。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648474828",
+      "document_class": "continuation_family|product_service",
+      "table_profile": {
+        "table_id": "p259:64",
+        "page": 259,
+        "title": "(a) 分類收入資料(續)",
+        "title_family": "a分類收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 5,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "continuation_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "",
+          "2024\n2024年\nRMB&#x27;000\n人民幣千元",
+          "2023\n2023年\nRMB&#x27;000\n人民幣千元"
+        ],
+        [
+          "Revenue recognised that was included in contract liabilities at the beginning of the year:",
+          "年初計入合同負債的確認收入:",
+          "",
+          ""
+        ],
+        [
+          "Devices",
+          "設備",
+          "11,942",
+          "6,084"
+        ],
+        [
+          "Digital educational resources and services",
+          "數字化教輔資源和服務",
+          "57,914",
+          "89,961"
+        ],
+        [
+          "Total",
+          "總計",
+          "69,856",
+          "96,045"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p18:0",
+          "title": "下表載列按銷售渠道劃分的收入貢獻:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p21:2",
+          "title": "下表載列我們來自各產品類別的收入概要:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p33:6",
+          "title": "本集團截至2020年及2021年12月31日止年度之業績、資產及負債概要摘錄自招股章程。",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p188:39",
+          "title": "獨立審計師報告",
+          "role": "product_service_breakdown",
+          "geometry": "multi_section_row",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p255:60",
+          "title": "以下為按可呈報分部作出的本集團收益及業績分析:",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p257:62",
+          "title": "有關收入的分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p258:63",
+          "title": "(a) 分類收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "multi_section_row",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p278:86",
+          "title": "本集團根據經營租賃安排租用若干樓宇單位及設備。樓宇及設備的租期協定為一至六年。本年度,本集團確認的租金收入為人民幣2,402,000元(2023年:人民幣2,090,000元),其詳情載於財務報表附註5。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603261820775085",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p8:4",
+        "page": 8,
+        "title": "(i) 分拆收入資料",
+        "title_family": "i分拆收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 7,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n港幣千元",
+          "二零二四年\n港幣千元"
+        ],
+        [
+          "服務類型",
+          "",
+          ""
+        ],
+        [
+          "基金管理服務收入",
+          "6,404",
+          "4,971"
+        ],
+        [
+          "外部資產管理顧問佣金收入",
+          "19,249",
+          "38,197"
+        ],
+        [
+          "財務顧問及諮詢費收入",
+          "-",
+          "510"
+        ],
+        [
+          "其他",
+          "-",
+          "44"
+        ],
+        [
+          "總計",
+          "25,653",
+          "43,722"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p7:3",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p8:5",
+          "title": "(i) 分拆收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p8:6",
+          "title": "(i) 分拆收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503231646467174",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p58:64",
+        "page": 58,
+        "title": "4 收入和成本分析",
+        "title_family": "收入和成本分析",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "period_unstated",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_high",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "expense",
+          "revenue"
+        ],
+        "layout_signals": [
+          "metric_columns",
+          "row_identity"
+        ],
+        "axis_signals": [
+          "business",
+          "product_service"
+        ],
+        "row_count": 22,
+        "column_count": 7,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|period_unstated",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "主營業務分產品情況(單位:人民幣萬元)",
+          "主營業務分產品情況(單位:人民幣萬元)",
+          "主營業務分產品情況(單位:人民幣萬元)",
+          "主營業務分產品情況(單位:人民幣萬元)",
+          "主營業務分產品情況(單位:人民幣萬元)",
+          "主營業務分產品情況(單位:人民幣萬元)",
+          "主營業務分產品情況(單位:人民幣萬元)"
+        ],
+        [
+          "分產品",
+          "營業收入",
+          "營業成本",
+          "毛利率(%)",
+          "營業收入比上年增減(%)",
+          "營業成本比上年增減(%)",
+          "毛利率比上年增減(%)"
+        ],
+        [
+          "礦山產金錠",
+          "2,031,559",
+          "1,093,733",
+          "46.16",
+          "39.30",
+          "13.53",
+          "增加12.22個百分點"
+        ],
+        [
+          "礦山產金精礦",
+          "1,497,718",
+          "469,679",
+          "68.64",
+          "19.75",
+          "-10.48",
+          "增加10.59個百分點"
+        ],
+        [
+          "礦山產銅精礦",
+          "3,495,483",
+          "1,187,417",
+          "66.03",
+          "10.39",
+          "-7.35",
+          "增加6.51個百分點"
+        ],
+        [
+          "礦山產電積銅",
+          "511,247",
+          "263,810",
+          "48.40",
+          "-5.50",
+          "-7.97",
+          "增加1.39個百分點"
+        ],
+        [
+          "礦山產電解銅",
+          "810,438",
+          "438,743",
+          "45.86",
+          "84.17",
+          "37.85",
+          "增加18.18個百分點"
+        ],
+        [
+          "礦山產鋅",
+          "576,625",
+          "337,545",
+          "41.46",
+          "17.24",
+          "-12.20",
+          "增加19.63個百分點"
+        ],
+        [
+          "礦山產銀",
+          "201,032",
+          "78,412",
+          "61.00",
+          "39.73",
+          "10.73",
+          "增加10.22個百分點"
+        ],
+        [
+          "鐵精礦",
+          "44,013",
+          "11,703",
+          "73.41",
+          "-64.13",
+          "-75.89",
+          "增加12.98個百分點"
+        ],
+        [
+          "冶煉加工及貿易金",
+          "12,550,115",
+          "12,493,770",
+          "0.45",
+          "12.80",
+          "12.97",
+          "減少0.14個百分點"
+        ],
+        [
+          "冶煉產銅",
+          "4,936,097",
+          "4,835,099",
+          "2.05",
+          "12.87",
+          "14.09",
+          "減少1.04個百分點"
+        ],
+        [
+          "冶煉產鋅",
+          "755,116",
+          "720,137",
+          "4.63",
+          "18.15",
+          "21.26",
+          "減少2.44個百分點"
+        ],
+        [
+          "其他",
+          "20,270,866",
+          "19,025,775",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "內部抵銷數",
+          "-17,316,313",
+          "-16,778,206",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "合併數",
+          "30,363,996",
+          "24,177,617",
+          "20.37",
+          "3.49",
+          "-2.12",
+          "增加4.56個百分點"
+        ],
+        [
+          "主營業務分地區情況(單位:人民幣萬元)",
+          "主營業務分地區情況(單位:人民幣萬元)",
+          "主營業務分地區情況(單位:人民幣萬元)",
+          "主營業務分地區情況(單位:人民幣萬元)",
+          "主營業務分地區情況(單位:人民幣萬元)",
+          "主營業務分地區情況(單位:人民幣萬元)",
+          "主營業務分地區情況(單位:人民幣萬元)"
+        ],
+        [
+          "分地區",
+          "營業收入",
+          "營業成本",
+          "毛利率(%)",
+          "營業收入比上年增減(%)",
+          "營業成本比上年增減(%)",
+          "毛利率比上年增減(%)"
+        ],
+        [
+          "境外",
+          "13,147,102",
+          "9,529,358",
+          "27.52",
+          "47.44",
+          "37.47",
+          "增加5.26個百分點"
+        ],
+        [
+          "境內",
+          "34,533,207",
+          "31,426,465",
+          "9.00",
+          "3.95",
+          "4.30",
+          "減少0.31個百分點"
+        ],
+        [
+          "內部抵銷數",
+          "-17,316,313",
+          "-16,778,206",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "合併數",
+          "30,363,996",
+          "24,177,617",
+          "20.37",
+          "3.49",
+          "-2.12",
+          "增加4.56個百分點"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p11:9",
+          "title": "2. 營業收入和營業成本",
+          "role": "revenue_with_metrics",
+          "geometry": "row_metric_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p22:29",
+          "title": "2024年本集團對上海黃金交易所的收入為人民幣104,631,661,534元(2023年:人民幣94,672,414,813元),該營業收入主要來自於礦產品、冶煉產品分部。",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p39:50",
+          "title": "銅業務銷售收入佔報告期內營業收入的 27.98%(抵銷後),毛利佔集團毛利的 45.03%。",
+          "role": "revenue_with_metrics",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p39:51",
+          "title": "銅業務銷售收入佔報告期內營業收入的 27.98%(抵銷後),毛利佔集團毛利的 45.03%。",
+          "role": "revenue_with_metrics",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p41:52",
+          "title": "黃金業務銷售收入佔報告期內營業收入的 49.64%(抵銷後),毛利佔集團毛利的 30.07%。(1 盎司=31.1035 克)",
+          "role": "revenue_with_metrics",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603101820443382",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p10:7",
+        "page": 10,
+        "title": "本集團的收入分析如下:",
+        "title_family": "本集團的收入分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 5,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n千美元",
+          "二零二四年\n千美元"
+        ],
+        [
+          "客户合約收入",
+          "3,408,980",
+          "3,055,862"
+        ],
+        [
+          "來自其他來源的收入:",
+          "",
+          ""
+        ],
+        [
+          "其他租金收入",
+          "2,667",
+          "2,197"
+        ],
+        [
+          "總計",
+          "3,411,647",
+          "3,058,059"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p9:5",
+          "title": "以下按地區分類的收入資料按客户所在地呈列:",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p9:6",
+          "title": "以下按地區分類的收入資料按客户所在地呈列:",
+          "role": "geography_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p10:8",
+          "title": "本集團的收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p18:15",
+          "title": "財務回顧",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "business",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202601301818602002",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p28:17",
+        "page": 28,
+        "title": "(a) 分拆收入資料",
+        "title_family": "a分拆收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 8,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2024年\n人民幣千元",
+          "2023年\n人民幣千元"
+        ],
+        [
+          "貨品或服務類別",
+          "",
+          ""
+        ],
+        [
+          "消費級基因檢測的服務及配套-透過GTK",
+          "94,663",
+          "1,559"
+        ],
+        [
+          "消費級基因檢測的服務及配套-透過DTS",
+          "64,931",
+          "106,822"
+        ],
+        [
+          "癌症篩查檢測的服務及配套-透過DTS",
+          "4,632",
+          "42,919"
+        ],
+        [
+          "總計",
+          "164,226",
+          "151,300"
+        ],
+        [
+          "收入確認時間",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點轉讓的服務",
+          "164,226",
+          "151,300"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p2:0",
+          "title": "財務摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p7:2",
+          "title": "下表載列於所示期間按經營分部劃分的分部收入(以數字及佔總收入的百分比形式呈列)。",
+          "role": "segment_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p27:16",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p28:18",
+          "title": "(a) 分拆收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603261820773644",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p7:7",
+        "page": 7,
+        "title": "(a) 分拆收益資料",
+        "title_family": "a分拆收益資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "product_service_breakdown",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 7,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "貨品或服務類型",
+          "",
+          ""
+        ],
+        [
+          "整體APM系統解決方案",
+          "52,586",
+          "38,426"
+        ],
+        [
+          "軟件開發服務",
+          "39,543",
+          "41,947"
+        ],
+        [
+          "技術服務",
+          "11,985",
+          "21,190"
+        ],
+        [
+          "嵌入式硬件及標準APM軟件",
+          "700",
+          "2,460"
+        ],
+        [
+          "總計",
+          "104,814",
+          "104,023"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p6:5",
+          "title": "上述收益資料乃基於客户所在地區劃分。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p7:6",
+          "title": "有關收益的分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p7:8",
+          "title": "(a) 分拆收益資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p16:25",
+          "title": "合約資產初步確認為來自整體APM系統解決方案及軟件開發服務的收益,乃由於代價須待客户成功驗收項目後方可收取。當收取代價的權利成為無條件時,金額重新分類至貿易應收賬款。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p16:26",
+          "title": "合約資產初步確認為來自整體APM系統解決方案及軟件開發服務的收益,乃由於代價須待客户成功驗收項目後方可收取。當收取代價的權利成為無條件時,金額重新分類至貿易應收賬款。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202502251643491471",
+      "document_class": "multiple_same_geometry|row_period|product_service",
+      "table_profile": {
+        "table_id": "p7:6",
+        "page": 7,
+        "title": "3. 收益及分類資料",
+        "title_family": "收益及分類資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 18,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至十二月三十一日止六個月",
+          "截至十二月三十一日止六個月"
+        ],
+        [
+          "二零二四年\n千港元\n(未經審核)",
+          "二零二三年\n千港元\n(未經審核)"
+        ],
+        [
+          "客户合約收益",
+          "",
+          ""
+        ],
+        [
+          "酒店收入:",
+          "",
+          ""
+        ],
+        [
+          "房間出租",
+          "8,317",
+          "8,652"
+        ],
+        [
+          "餐飲銷售",
+          "1,233",
+          "921"
+        ],
+        [
+          "",
+          "9,550",
+          "9,573"
+        ],
+        [
+          "貿易收入:",
+          "",
+          ""
+        ],
+        [
+          "酒類產品",
+          "3",
+          "35"
+        ],
+        [
+          "",
+          "9,553",
+          "9,608"
+        ],
+        [
+          "其他來源之收益",
+          "",
+          ""
+        ],
+        [
+          "股息收入:",
+          "",
+          ""
+        ],
+        [
+          "上市證券投資",
+          "4,615",
+          "4,240"
+        ],
+        [
+          "總計",
+          "14,168",
+          "13,848"
+        ],
+        [
+          "客户合約收益分拆:",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點",
+          "1,236",
+          "956"
+        ],
+        [
+          "隨一段時間",
+          "8,317",
+          "8,652"
+        ],
+        [
+          "總計",
+          "9,553",
+          "9,608"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p8:7",
+          "title": "按可報告分類劃分本集團之收益及業績分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p11:10",
+          "title": "本集團之營運地點位於香港(原駐地點)、中華人民共和國(「中國」)及日本。本集團按地區市場劃分來自外界客户之收益及有關其非流動資產(金融工具除外)之資料詳情如下:",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p11:11",
+          "title": "本集團之營運地點位於香港(原駐地點)、中華人民共和國(「中國」)及日本。本集團按地區市場劃分來自外界客户之收益及有關其非流動資產(金融工具除外)之資料詳情如下:",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p32:37",
+          "title": "截至二零二四年十二月三十一日止期間之未變現收益/(虧損)及已收股息",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603241820729428",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p33:17",
+        "page": 33,
+        "title": "(a) 收入分拆資料",
+        "title_family": "a收入分拆資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 10,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "貨品或服務類別",
+          "",
+          ""
+        ],
+        [
+          "產品銷售",
+          "2,448,353",
+          "1,208,718"
+        ],
+        [
+          "其他",
+          "1,184",
+          "923"
+        ],
+        [
+          "總計",
+          "2,449,537",
+          "1,209,641"
+        ],
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "收入確認時間",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點轉移的貨品",
+          "2,448,353",
+          "1,208,718"
+        ],
+        [
+          "隨時間轉移的服務",
+          "1,184",
+          "923"
+        ],
+        [
+          "總計",
+          "2,449,537",
+          "1,209,641"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務業績摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p6:1",
+          "title": "我們的門店網絡分布於中國各線級城市。我們不僅保持在頭部城市的布局,以提升品牌知名度並緊跟市場趨勢,亦不斷滲透消費增長潛力較大的低線城市。儘管低線城市居民收入水平的絕對金額仍低於一線及新一線城市,但近年來該等市場的收入增速已超越高線城市。強勁的收入增長正不斷提升低線城市家庭的購買力及消費能力,推動對高端護膚品的需求。該等市場的消費者愈發願意為功效可靠、品牌口碑卓越的優質產品買單。這一均衡布局策略確保我們能夠觸達廣泛的消費群體,並在各層級城市中建立品牌知名度。下表載列截至所示日期我們在中國按城市層級劃分的門店覆蓋範圍明細:",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p6:2",
+          "title": "於報告期內,我們於中國各線城市產生的收入實現穩定增長。下表載列於所示期間按中國城市層級劃分的線下門店收入明細:",
+          "role": "geography_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p7:3",
+          "title": "下表載列於所示期間按渠道劃分的線上直銷收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p15:4",
+          "title": "下表載列報告期內按產品類別列示的收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p16:5",
+          "title": "下表載列報告期內按銷售渠道列示的收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p33:16",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p33:18",
+          "title": "(a) 收入分拆資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p34:19",
+          "title": "下表列示按銷售渠道劃分的收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p34:20",
+          "title": "下表列示按銷售渠道劃分的收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603121820525381",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p30:14",
+        "page": 30,
+        "title": "(i) 分類收入資料",
+        "title_family": "i分類收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 12,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至12月31日止年度",
+          "截至12月31日止年度"
+        ],
+        [
+          "2025年 人民幣千元",
+          "2024年 人民幣千元"
+        ],
+        [
+          "客户合約收入",
+          "",
+          ""
+        ],
+        [
+          "營銷服務收入",
+          "1,402,031",
+          "1,097,443"
+        ],
+        [
+          "商品銷售收入",
+          "194,145",
+          "184,614"
+        ],
+        [
+          "其他相關服務收入",
+          "67,068",
+          "57,443"
+        ],
+        [
+          "總計",
+          "1,663,244",
+          "1,339,500"
+        ],
+        [
+          "收入確認時間",
+          "",
+          ""
+        ],
+        [
+          "在某一時點轉移商品",
+          "194,150",
+          "184,614"
+        ],
+        [
+          "在某一時點提供服務",
+          "67,068",
+          "57,443"
+        ],
+        [
+          "隨時間提供服務",
+          "1,402,026",
+          "1,097,443"
+        ],
+        [
+          "總計",
+          "1,663,244",
+          "1,339,500"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "年度業績摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p30:15",
+          "title": "(i) 分類收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648794423",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p10:4",
+        "page": 10,
+        "title": "收入的分析如下:",
+        "title_family": "收入的分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 5,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二四年\n人民幣千元",
+          "二零二三年\n人民幣千元"
+        ],
+        [
+          "客户合約收入",
+          "24,433,226",
+          "33,831,807"
+        ],
+        [
+          "其他來源收入",
+          "",
+          ""
+        ],
+        [
+          "物業租賃收入",
+          "332,818",
+          "416,878"
+        ],
+        [
+          "總計",
+          "24,766,044",
+          "34,248,685"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p11:5",
+          "title": "(a) 分列收入資料",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p11:6",
+          "title": "(a) 分列收入資料",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p12:7",
+          "title": "預期確認為收入的金額:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p24:21",
+          "title": "我們專注於長三角、環渤海、東南、華東、華中、西南、西北及深惠八大區域選定城市的合適位置。下表載列所示期間各地區產生的收入、各地區已交付總建築面積(「建築面積」)以及各地區各自物業的已確認每平方米的平均售價(「平均售價」):",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p26:23",
+          "title": "下表載列所示期間有關收入的資料:",
+          "role": "generic_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202504301665212280",
+      "document_class": "single|row_period|product_service",
+      "table_profile": {
+        "table_id": "p6:4",
+        "page": 6,
+        "title": "本集團的收益分析如下:",
+        "title_family": "本集團的收益分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 4,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二四年\n美元",
+          "二零二三年\n美元"
+        ],
+        [
+          "產品銷售",
+          "33,584,207",
+          "40,591,908"
+        ],
+        [
+          "有關產品銷售的付運收入",
+          "3,769,042",
+          "4,459,800"
+        ],
+        [
+          "客户合約收益",
+          "37,353,249",
+          "45,051,708"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p7:5",
+          "title": "客户合約收益明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p17:20",
+          "title": "下表載列我們於所示年度按類型劃分、按銷售渠道劃分及按地區市場劃分並以絕對金額表示的收益明細及佔收益的百分比:",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603251820742424",
+      "document_class": "multiple_same_geometry|row_period|product_service",
+      "table_profile": {
+        "table_id": "p22:7",
+        "page": 22,
+        "title": "(i) 分拆收益資料",
+        "title_family": "i分拆收益資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 7,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "客户合約收益",
+          "",
+          ""
+        ],
+        [
+          "醫療診斷服務",
+          "2,638,450",
+          "2,914,113"
+        ],
+        [
+          "收益確認時間",
+          "",
+          ""
+        ],
+        [
+          "於某一時間",
+          "2,590,955",
+          "2,878,000"
+        ],
+        [
+          "隨著時間",
+          "47,495",
+          "36,113"
+        ],
+        [
+          "合計",
+          "2,638,450",
+          "2,914,113"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "本公告載有涉及風險及不確定因素的前瞻性陳述。除歷史事實陳述以外的所有陳述均為前瞻性陳述。該等陳述涉及已知及未知的風險、不確定因素及其他因素,當中部分並非本公司所能控制,且可導致實際業績、表現或成果與前瞻性陳述所明示或暗示者存在重大差異。閣下不應依賴前瞻性陳述作為未來事件的預測。本公司概不負責更新或修訂任何前瞻性陳述,無論是否由於新資料、未來事件或其他因素所致。",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p22:8",
+          "title": "(i) 分拆收益資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p24:10",
+          "title": "由於截至2025年12月31日止年度的收入未超過7.5億歐元,故本集團不屬於支柱二立法模板的範圍內。隨著更多國家準備頒佈支柱二立法模板,本集團繼續密切關注支柱二立法進展,以評估對其財務報表的潛在未來影響。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p33:23",
+          "title": "(b) 根據本集團與河南艾迪康當時股東訂立的購股協議,河南艾迪康收取的2021年COVID-19檢驗服務收益將償付予當時股東。於2025年12月31日,本集團代表當時股東收取的收益餘額為人民幣61,175,000元(2024年:人民幣61,175,000元)。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603241820720677",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p209:58",
+        "page": 209,
+        "title": "(i) 收入分拆資料(續)",
+        "title_family": "i收入分拆資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 7,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "continuation_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "於報告期初計入合約負債的已確認收入:",
+          "",
+          ""
+        ],
+        [
+          "已竣工物業銷售",
+          "39,193,843",
+          "39,544,747"
+        ],
+        [
+          "酒店經營",
+          "14,465",
+          "8,815"
+        ],
+        [
+          "物業管理服務",
+          "739,919",
+          "472,555"
+        ],
+        [
+          "其他",
+          "222,221",
+          "127,192"
+        ],
+        [
+          "合計",
+          "40,170,448",
+          "40,153,309"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p6:0",
+          "title": "財務摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p49:9",
+          "title": "按業務分部劃分之收入",
+          "role": "segment_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p205:51",
+          "title": "4. 經營分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p206:52",
+          "title": "4. 經營分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p207:53",
+          "title": "本集團的收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p207:54",
+          "title": "(i) 收入分拆資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p208:55",
+          "title": "(i) 收入分拆資料(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p209:57",
+          "title": "(i) 收入分拆資料(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p211:59",
+          "title": "5. 收入、其他收入和收益(續)",
+          "role": "generic_revenue",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p232:81",
+          "title": "本集團根據經營租賃安排出租其投資物業(包括位於中國大陸的商用物業和使用權資產)(附註18)。租賃條款亦通常規定租户須繳付保證金,並定期根據當時市況調整租金。本集團於年內確認的租金收入為人民幣1,595,219,000元(2024年:人民幣1,626,835,000元),有關詳情載於財務報表附註5。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p260:120",
+          "title": "倘業務合併於截至2024年12月31日止年度年初進行,於截至2024年12月31日止年度的本集團收入及本集團利潤應分別為人民幣59,361,793,000元及人民幣2,214,227,000元。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p281:149",
+          "title": "五年財務資料",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202604301821873304",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p106:42",
+        "page": 106,
+        "title": "(i) 收益分拆資料",
+        "title_family": "i收益分拆資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "period_unstated",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity"
+        ],
+        "axis_signals": [
+          "business",
+          "product_service"
+        ],
+        "row_count": 16,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|period_unstated",
+        "table_relation": "continuation_family"
+      },
+      "raw_table": [
+        [
+          "分部",
+          "SI千港元",
+          "IBO千港元",
+          "總計千港元"
+        ],
+        [
+          "貨品或服務類別",
+          "",
+          "",
+          ""
+        ],
+        [
+          "銷售發動機式發電機組",
+          "241,679",
+          "-",
+          "241,679"
+        ],
+        [
+          "提供技術及其他服務",
+          "6,333",
+          "-",
+          "6,333"
+        ],
+        [
+          "提供分佈式發電方案",
+          "-",
+          "954,641",
+          "954,641"
+        ],
+        [
+          "總額",
+          "248,012",
+          "954,641",
+          "1,202,653"
+        ],
+        [
+          "地產市場",
+          "",
+          "",
+          ""
+        ],
+        [
+          "香港及中國內地",
+          "103,184",
+          "14,602",
+          "117,786"
+        ],
+        [
+          "其他亞洲國家",
+          "133,579",
+          "164,169",
+          "297,748"
+        ],
+        [
+          "拉丁美洲",
+          "-",
+          "775,870",
+          "775,870"
+        ],
+        [
+          "其他國家",
+          "11,249",
+          "-",
+          "11,249"
+        ],
+        [
+          "總額",
+          "248,012",
+          "954,641",
+          "1,202,653"
+        ],
+        [
+          "確認收入時間",
+          "",
+          "",
+          ""
+        ],
+        [
+          "貨品於某時間點轉移",
+          "241,679",
+          "-",
+          "241,679"
+        ],
+        [
+          "服務隨着時間轉移",
+          "6,333",
+          "954,641",
+          "960,974"
+        ],
+        [
+          "總額",
+          "248,012",
+          "954,641",
+          "1,202,653"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p10:1",
+          "title": "下表載列所示年度我們的SI業務按地域市場劃分的收益實際金額及佔總收益的百分比明細:",
+          "role": "geography_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p11:2",
+          "title": "下表載列所示年度我們的IBO業務按地域市場劃分的收益實際金額及佔總收益的百分比明細:",
+          "role": "geography_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p11:3",
+          "title": "下表載列所示年度我們的IBO業務按地域市場劃分的收益實際金額及佔總收益的百分比明細:",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p69:29",
+          "title": "合併全面收入表",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p103:36",
+          "title": "5. 經營分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p104:37",
+          "title": "5. 經營分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p105:39",
+          "title": "上述收益資料乃基於客户所在地劃分。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p105:40",
+          "title": "上述收益資料乃基於客户所在地劃分。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p106:41",
+          "title": "收益的分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p107:43",
+          "title": "(i) 收益分拆資料(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p107:44",
+          "title": "(i) 收益分拆資料(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603161820580333",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p24:10",
+        "page": 24,
+        "title": "截至2025年及2024年12月31日止年度,本集團按類別劃分的收入分析如下:",
+        "title_family": "截至年及年月日止年度本集團按類別劃分的收入分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 9,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至12月31日止年度",
+          "截至12月31日止年度"
+        ],
+        [
+          "2025年 人民幣千元",
+          "2024年 人民幣千元"
+        ],
+        [
+          "按時間點確認來自客户的收入",
+          "",
+          ""
+        ],
+        [
+          "車輛及部件銷售(i)",
+          "62,012,976",
+          "31,627,077"
+        ],
+        [
+          "其他銷售",
+          "2,584,507",
+          "425,241"
+        ],
+        [
+          "",
+          "64,597,483",
+          "32,052,318"
+        ],
+        [
+          "隨時間確認來自客户的收入",
+          "",
+          ""
+        ],
+        [
+          "提供服務",
+          "134,377",
+          "111,866"
+        ],
+        [
+          "",
+          "64,731,860",
+          "32,164,184"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p23:9",
+          "title": "截至2025年12月31日止年度,除於中國內地開展業務及營運外,本集團拓寬銷售面,向中國內地以外地區出口新能源汽車及部件。下表列示截至2025年及2024年12月31日止年度本集團按客户位置劃分的合併收入總額:",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p24:11",
+          "title": "截至2025年及2024年12月31日止年度,本集團按類別劃分的收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p25:12",
+          "title": "3 收入及分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "business",
+          "eligible": false
+        },
+        {
+          "table_id": "p25:13",
+          "title": "3 收入及分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p31:23",
+          "title": "於2025年及2024年12月31日,基於收入確認日期的貿易應收款項賬齡分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603271820793587",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p8:7",
+        "page": 8,
+        "title": "本集團之收入分析如下:",
+        "title_family": "本集團之收入分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 10,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n人民幣千元",
+          "二零二四年\n人民幣千元"
+        ],
+        [
+          "來自客户合約之收入",
+          "",
+          ""
+        ],
+        [
+          "線下銷售",
+          "2,266,203",
+          "2,144,111"
+        ],
+        [
+          "電子商務",
+          "392,661",
+          "410,769"
+        ],
+        [
+          "物流收入",
+          "99,216",
+          "132,481"
+        ],
+        [
+          "產業項目物業的銷售",
+          "185,030",
+          "322,769"
+        ],
+        [
+          "",
+          "2,943,110",
+          "3,010,130"
+        ],
+        [
+          "來自其他來源之收入",
+          "",
+          ""
+        ],
+        [
+          "來自投資物業的租金收入總額",
+          "11,039",
+          "-"
+        ],
+        [
+          "",
+          "2,954,149",
+          "3,010,130"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "全年業績公告",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p7:5",
+          "title": "有關可呈報分部的資料呈列如下。",
+          "role": "segment_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p8:8",
+          "title": "本集團之收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p9:10",
+          "title": "6. 財務收入及費用",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p17:18",
+          "title": "本集團收入主要源自在中國銷售貼身衣物產品,包括向加盟商或透過自營/聯營門店及網絡銷售平台向消費者銷售產品、發展產業項目及提供物流服務。收入明細如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603101820443403",
+      "document_class": "continuation_family|product_service",
+      "table_profile": {
+        "table_id": "p192:78",
+        "page": 192,
+        "title": "(a) 分類收入信息:(續)",
+        "title_family": "a分類收入信息",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 7,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "continuation_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至十二月三十一日止年度",
+          "截至十二月三十一日止年度"
+        ],
+        [
+          "",
+          "二零二五年",
+          "二零二四年"
+        ],
+        [
+          "",
+          "人民幣千元",
+          "人民幣千元"
+        ],
+        [
+          "於年初計入合同負債的已確認收入:",
+          "",
+          ""
+        ],
+        [
+          "工程技術服務",
+          "44,063",
+          "25,380"
+        ],
+        [
+          "銷售商品",
+          "32,436",
+          "19,695"
+        ],
+        [
+          "總計",
+          "76,499",
+          "45,075"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p22:2",
+          "title": "2.1 利潤表分析(概覽)",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p24:4",
+          "title": "下表列出有關本集團與收入相關的關鍵經營資料:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p25:5",
+          "title": "下表列出本集團收入按業務分部的構成及變動情況:",
+          "role": "segment_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p29:7",
+          "title": "下表列出本集團收入按地區分部的構成及變動情況:",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p42:19",
+          "title": "合同資產指本集團向客户提供工程技術服務所產生的收取款項權利;由於收取對價的條件分別取決於是否成功完成服務及得到客户驗收,合同資產初步根據來自工程技術服務的收入進行確認。在服務完成並得到客户驗收後,確認為合同資產的數額將重新歸類為應收款項。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p44:20",
+          "title": "二零二五年度,本集團應收款項周轉天數為248天,較去年的172天有所增加,主要由於應收賬款淨額較年初增加,同時本年收入下降,導致周轉天數上升。",
+          "role": "generic_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p44:21",
+          "title": "二零二五年度,本集團應收款項周轉天數為248天,較去年的172天有所增加,主要由於應收賬款淨額較年初增加,同時本年收入下降,導致周轉天數上升。",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p189:74",
+          "title": "以上收入資料乃基於客户的地點呈列。中國大陸以外地區的收入主要來自香港、東南亞及中東市場。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p190:75",
+          "title": "收入的分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p191:76",
+          "title": "(a) 分類收入信息:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p191:77",
+          "title": "(a) 分類收入信息:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p204:95",
+          "title": "每股基本及攤薄收益的計算乃基於:",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p204:96",
+          "title": "每股基本及攤薄收益的計算乃基於:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p210:103",
+          "title": "本集團主要根據經營租賃安排於中國大陸出租其設備、材料及模具。租賃條款通常要求租户支付保證金,並根據當時的市況進行定期租金調整。截至二零二五年十二月三十一日止年度,本集團確認的租金收入為人民幣6,446,893,000元,有關詳情載於財務報表附註5(二零二四年:人民幣6,357,409,000元)。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p229:133",
+          "title": "29. 遞延收入",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p229:134",
+          "title": "29. 遞延收入",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p229:135",
+          "title": "29. 遞延收入",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p243:150",
+          "title": "(iii) 關聯方的工程技術服務收入來自物流服務及改裝服務。運輸價格乃參考運輸距離及車輛的重量後經公平磋商釐定;而改裝服務價格乃參考車輛數目後經公平磋商釐定。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603301820880849",
+      "document_class": "continuation_family|product_service",
+      "table_profile": {
+        "table_id": "p11:7",
+        "page": 11,
+        "title": "(a) 收益分拆資料",
+        "title_family": "a收益分拆資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_high",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 9,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "continuation_family"
+      },
+      "raw_table": [
+        [
+          "服務類型",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "物業管理服務",
+          "874,571",
+          "841,828"
+        ],
+        [
+          "物業工程及園林建設服務",
+          "34,161",
+          "35,007"
+        ],
+        [
+          "其他",
+          "7,117",
+          "5,895"
+        ],
+        [
+          "香港財務報告準則第15號範圍內的客户合約收益總額",
+          "915,849",
+          "882,730"
+        ],
+        [
+          "收益確認時間",
+          "",
+          ""
+        ],
+        [
+          "隨時間轉讓的服務",
+          "909,917",
+          "881,449"
+        ],
+        [
+          "於某一時點",
+          "5,932",
+          "1,281"
+        ],
+        [
+          "",
+          "915,849",
+          "882,730"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p9:4",
+          "title": "管理層獨立監察本集團經營分部之業績,以作出有關資源分配及表現評估之決策。並無呈列有關分部資產及負債之分析,因為管理層並無定期審閱有關資料以進行資源分配及表現評估。因此,僅有分部收益及分部業績予以呈列。",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p11:6",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p12:8",
+          "title": "(a) 收益分拆資料(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p21:18",
+          "title": "下表載列所示年度按所提供服務的類型劃分的收益明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p22:19",
+          "title": "下表載列所示年度按在管物業類型劃分提供物業管理服務所得收益明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603311820926040",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p127:35",
+        "page": 127,
+        "title": "(a) 收益資料劃分(續)",
+        "title_family": "a收益資料劃分",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 6,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "continuation_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年人民幣千元",
+          "2024年人民幣千元"
+        ],
+        [
+          "於報告期初計入合約負債結餘的已確認收入:",
+          "",
+          ""
+        ],
+        [
+          "跨境社交電商",
+          "14,758",
+          "659"
+        ],
+        [
+          "紙製包裝",
+          "2,959",
+          "1,619"
+        ],
+        [
+          "其他",
+          "141",
+          "12,551"
+        ],
+        [
+          "",
+          "17,858",
+          "14,829"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p23:7",
+          "title": "下表載列於所示期間各業務線對我們總收入的貢獻:",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p122:30",
+          "title": "4. 經營分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p123:31",
+          "title": "4. 經營分部資料(續)",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p125:33",
+          "title": "(a) 收益資料劃分",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p126:34",
+          "title": "(a) 收益資料劃分(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p138:48",
+          "title": "下文反映計算每股基本盈利所用的收入及股份數據:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p138:49",
+          "title": "下文反映計算每股基本盈利所用的收入及股份數據:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p145:58",
+          "title": "在所有其他關鍵假設保持不變的情況下,本公司管理層通過將銷售額預算減少0.3%、將毛利率減少0.3%或將貼現率增加0.3%進行敏感度測試。對SENADA E-COMMERCE現金產生單位可收回金額超出賬面值的金額(「餘量」)的影響如下:",
+          "role": "revenue_with_metrics",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p145:59",
+          "title": "在所有其他關鍵假設保持不變的情況下,本公司管理層通過將銷售額預算減少0.3%、將毛利率減少0.3%或將貼現率增加0.3%進行敏感度測試。對SENADA E-COMMERCE現金產生單位可收回金額超出賬面值的金額(「餘量」)的影響如下:",
+          "role": "revenue_with_metrics",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p156:78",
+          "title": "30. 遞延收入",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p156:79",
+          "title": "30. 遞延收入",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p178:111",
+          "title": "綜合業績",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648722161",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p184:71",
+        "page": 184,
+        "title": "(b) 收入分拆:",
+        "title_family": "b收入分拆",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "measurement_unstated",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 8,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2024年",
+          "2023年"
+        ],
+        [
+          "債券淨收益",
+          "30,846",
+          "203,480"
+        ],
+        [
+          "基金淨收益",
+          "29,930",
+          "119,016"
+        ],
+        [
+          "投資管理產品凈(虧損)/收益",
+          "(124,681)",
+          "7,683"
+        ],
+        [
+          "衍生工具凈收益",
+          "23,513",
+          "13,609"
+        ],
+        [
+          "股權投資凈收益",
+          "33,117",
+          "3,933"
+        ],
+        [
+          "匯兌收益",
+          "34,161",
+          "38,372"
+        ],
+        [
+          "合計",
+          "26,886",
+          "386,093"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p34:28",
+          "title": "截至報告期末,我們權益總額307.98億元,較2023年末增加27.90億元,增長9.96%;歸屬於我們股東的權益總額為248.99億元,較2023年末增加27.58億元,增長12.46%,主要是我們的留存收益及投資重估儲備增加。下表列出截至所示日期我們股東權益的構成情況。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p182:68",
+          "title": "6. 利息淨收入",
+          "role": "generic_revenue",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p183:69",
+          "title": "(a) 收入及支出來源:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p184:70",
+          "title": "(b) 收入分拆:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p184:72",
+          "title": "(b) 收入分拆:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p210:118",
+          "title": "本集團根據經營租賃安排租用機器。機器的租賃期通常為十八年。租賃付款的議定通常反映市場收益。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p225:149",
+          "title": "於2024年12月31日,根據本集團現有合同分配至餘下履約責任之交易價總額為人民幣4.4百萬元(2023年:人民幣10.8百萬元)。該金額為預期未來自融資租賃服務確認的收益。本集團將於提供服務時確認日後預期收益。確認收入的預期時間介乎一至五年。",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p225:150",
+          "title": "於2024年12月31日,根據本集團現有合同分配至餘下履約責任之交易價總額為人民幣4.4百萬元(2023年:人民幣10.8百萬元)。該金額為預期未來自融資租賃服務確認的收益。本集團將於提供服務時確認日後預期收益。確認收入的預期時間介乎一至五年。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p225:151",
+          "title": "於2024年12月31日,根據本集團現有合同分配至餘下履約責任之交易價總額為人民幣4.4百萬元(2023年:人民幣10.8百萬元)。該金額為預期未來自融資租賃服務確認的收益。本集團將於提供服務時確認日後預期收益。確認收入的預期時間介乎一至五年。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603241820728274",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p7:3",
+        "page": 7,
+        "title": "(i) 分拆來自客户合約的收入",
+        "title_family": "i分拆來自客户合約的收入",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 13,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "附註",
+          "二零二五年千港元",
+          "二零二四年千港元"
+        ],
+        [
+          "貨品類別-於某一時間點",
+          "貨品類別-於某一時間點",
+          "貨品類別-於某一時間點",
+          "貨品類別-於某一時間點"
+        ],
+        [
+          "銷售托盤及托盤相關產品",
+          "a",
+          "192,712",
+          "153,329"
+        ],
+        [
+          "銷售載帶及卷盤",
+          "a",
+          "3,796",
+          "1,187"
+        ],
+        [
+          "銷售MEMS及傳感器封裝",
+          "b",
+          "3,228",
+          "8,552"
+        ],
+        [
+          "",
+          "",
+          "199,736",
+          "163,068"
+        ],
+        [
+          "地區市場",
+          "地區市場",
+          "地區市場",
+          "地區市場"
+        ],
+        [
+          "東南亞",
+          "c",
+          "70,478",
+          "52,956"
+        ],
+        [
+          "中華人民共和國(「中國」)",
+          "",
+          "63,775",
+          "47,732"
+        ],
+        [
+          "台灣",
+          "",
+          "39,402",
+          "30,577"
+        ],
+        [
+          "美利堅合眾國及歐洲",
+          "",
+          "14,054",
+          "16,430"
+        ],
+        [
+          "香港、韓國及日本",
+          "",
+          "12,027",
+          "15,373"
+        ],
+        [
+          "",
+          "",
+          "199,736",
+          "163,068"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p8:4",
+          "title": "以下為本集團來自可呈報及經營分部的收入及業績分析:",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p12:9",
+          "title": "於各個年度內,來自個別佔本集團總收益超過10%的客户的收入如下:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603311820929116",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p34:9",
+        "page": 34,
+        "title": "(i) 分類收入信息",
+        "title_family": "i分類收入信息",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 7,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "商品或服務類別",
+          "",
+          ""
+        ],
+        [
+          "貨運服務",
+          "4,098,530",
+          "7,174,460"
+        ],
+        [
+          "貨運平台服務*",
+          "421,685",
+          "344,716"
+        ],
+        [
+          "銷售商品",
+          "840",
+          "635"
+        ],
+        [
+          "其他增值服務",
+          "9,428",
+          "22,093"
+        ],
+        [
+          "客户合同收入總額",
+          "4,530,483",
+          "7,541,904"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "該等年度業績乃根據《上市規則》的適用規定及《國際財務報告準則》編製,並已經審核委員會審閱。本公告符合《上市規則》中有關年度業績初步公告附載的資料要求。",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p17:2",
+          "title": "下表載列於所示年度按商品或服務類型劃分的收入明細,以實際金額及佔總收入的百分比列示:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p34:8",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p35:10",
+          "title": "* 貨運平台服務收入主要指向託運方收取的合同金額與貨運成本淨額之間的差額,貨運成本為向貨車司機支付的合同金額,扣除數字貨運業務相關政府補助。截至2025年12月31日止年度,相關政府補助列示為收入的金額為人民幣790,959,843元(2024年:人民幣1,122,756,099元)。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p35:11",
+          "title": "下表列示於本報告期確認的收入金額,該等金額於報告期期初計入合同負債:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202506301700507694",
+      "document_class": "single|row_period|product_service",
+      "table_profile": {
+        "table_id": "p13:15",
+        "page": 13,
+        "title": "(i) 客户合約收益分拆",
+        "title_family": "i客户合約收益分拆",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity"
+        ],
+        "axis_signals": [],
+        "row_count": 3,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n千港元",
+          "二零二四年\n千港元"
+        ],
+        [
+          "建築工程",
+          "366,071",
+          "468,963"
+        ],
+        [
+          "隨時間確認收益",
+          "366,071",
+          "468,963"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p2:0",
+          "title": "綜合業績",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p6:8",
+          "title": "全面(虧損)/收益總額",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p6:9",
+          "title": "全面(虧損)/收益總額",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p6:10",
+          "title": "全面(虧損)/收益總額",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p13:16",
+          "title": "(i) 客户合約收益分拆",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p13:17",
+          "title": "(i) 客户合約收益分拆",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:19",
+          "title": "來自相應年度佔本集團總收益超過10%之客户之收益如下:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:20",
+          "title": "(i) 各年度相應收益並無佔本集團收益超過10%。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p23:29",
+          "title": "截至二零二五年三月三十一日止年度,本集團收益主要來自以分包商及合營方身份承接之土木工程合約。按本集團身份性質分類之總收益詳情載列如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603251820749651",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p6:4",
+        "page": 6,
+        "title": "客户合約收益分拆:",
+        "title_family": "客户合約收益分拆",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "business",
+          "product_service"
+        ],
+        "row_count": 10,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "貨品或服務種類",
+          "",
+          ""
+        ],
+        [
+          "銷售化工產品",
+          "",
+          ""
+        ],
+        [
+          "高分子材料",
+          "3,930,086",
+          "3,824,967"
+        ],
+        [
+          "製冷劑",
+          "4,940,752",
+          "3,247,702"
+        ],
+        [
+          "有機硅",
+          "3,824,405",
+          "5,212,703"
+        ],
+        [
+          "二氯甲烷及燒鹼",
+          "1,223,300",
+          "1,104,337"
+        ],
+        [
+          "",
+          "13,918,543",
+          "13,389,709"
+        ],
+        [
+          "其他業務",
+          "436,838",
+          "791,378"
+        ],
+        [
+          "總額",
+          "14,355,381",
+          "14,181,087"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務概要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p24:19",
+          "title": "本集團截至2025年及2024年12月31日止年度按呈報及經營分部分類的收益及業績的比較載列如下:",
+          "role": "segment_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "business",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202602241819995282",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p14:5",
+        "page": 14,
+        "title": "收入包括提供流動通訊服務以及手機及配件銷售之收入。收入分析如下:",
+        "title_family": "收入包括提供流動通訊服務以及手機及配件銷售之收入收入分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "measurement_unstated",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 6,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "未經審核截至12月31日止六個月",
+          "未經審核截至12月31日止六個月"
+        ],
+        [
+          "2025",
+          "2024"
+        ],
+        [
+          "$000",
+          "$000"
+        ],
+        [
+          "流動通訊服務",
+          "2,182,339",
+          "2,303,422"
+        ],
+        [
+          "手機及配件銷售",
+          "1,378,949",
+          "1,188,116"
+        ],
+        [
+          "",
+          "3,561,288",
+          "3,491,538"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p14:6",
+          "title": "收入包括提供流動通訊服務以及手機及配件銷售之收入。收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p14:7",
+          "title": "收入包括提供流動通訊服務以及手機及配件銷售之收入。收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503261647863408",
+      "document_class": "multiple_same_geometry|row_period|product_service",
+      "table_profile": {
+        "table_id": "p11:7",
+        "page": 11,
+        "title": "收益的分析如下:",
+        "title_family": "收益的分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 6,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二四年\n人民幣千元",
+          "二零二三年\n人民幣千元"
+        ],
+        [
+          "客户合約收益",
+          "1,197,272",
+          "298,181"
+        ],
+        [
+          "其他來源之收益",
+          "",
+          ""
+        ],
+        [
+          "投資物業經營租賃產生之租金收入總額:",
+          "",
+          ""
+        ],
+        [
+          "固定租賃付款",
+          "1,324",
+          "2,193"
+        ],
+        [
+          "",
+          "1,198,596",
+          "300,374"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p12:8",
+          "title": "(a) 收益資料分析",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p12:9",
+          "title": "(a) 收益資料分析",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p34:27",
+          "title": "下表載列本集團截至二零二四年十二月三十一日止年度按地區劃分的已簽約銷售額:",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p35:28",
+          "title": "本集團選擇性地保留大部分自主開發且具有戰略價值的商業物業的所有權,用於產生持續穩定的收益。於報告期末,本集團擁有總建築面積合共約21,613平方米的投資物業。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648474828",
+      "document_class": "continuation_family|product_service",
+      "table_profile": {
+        "table_id": "p257:62",
+        "page": 257,
+        "title": "有關收入的分析如下:",
+        "title_family": "有關收入的分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 11,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "",
+          "2024\n2024年\nRMB&#x27;000\n人民幣千元",
+          "2023\n2023年\nRMB&#x27;000\n人民幣千元"
+        ],
+        [
+          "Devices",
+          "設備",
+          "304,459",
+          "215,573"
+        ],
+        [
+          "Digital educational resources and services",
+          "數字化教輔資源和服務",
+          "84,873",
+          "97,559"
+        ],
+        [
+          "Personal student tablets",
+          "學生個人平板",
+          "389,332",
+          "313,132"
+        ],
+        [
+          "Devices",
+          "設備",
+          "3,639",
+          "5,954"
+        ],
+        [
+          "Digital educational resources and services",
+          "數字化教輔資源和服務",
+          "13,124",
+          "4,126"
+        ],
+        [
+          "Digital and smart classroom solutions",
+          "數智校園解決方案",
+          "16,763",
+          "10,080"
+        ],
+        [
+          "Wearable products",
+          "可穿戴產品",
+          "15,150",
+          "8,724"
+        ],
+        [
+          "Other products",
+          "其他產品",
+          "25,960",
+          "15,499"
+        ],
+        [
+          "Advertisement and content licensing",
+          "廣告及內容授權",
+          "14,195",
+          "11,937"
+        ],
+        [
+          "",
+          "",
+          "461,400",
+          "359,372"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p18:0",
+          "title": "下表載列按銷售渠道劃分的收入貢獻:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p21:2",
+          "title": "下表載列我們來自各產品類別的收入概要:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p33:6",
+          "title": "本集團截至2020年及2021年12月31日止年度之業績、資產及負債概要摘錄自招股章程。",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p188:39",
+          "title": "獨立審計師報告",
+          "role": "product_service_breakdown",
+          "geometry": "multi_section_row",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p255:60",
+          "title": "以下為按可呈報分部作出的本集團收益及業績分析:",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p258:63",
+          "title": "(a) 分類收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "multi_section_row",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p259:64",
+          "title": "(a) 分類收入資料(續)",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p278:86",
+          "title": "本集團根據經營租賃安排租用若干樓宇單位及設備。樓宇及設備的租期協定為一至六年。本年度,本集團確認的租金收入為人民幣2,402,000元(2023年:人民幣2,090,000元),其詳情載於財務報表附註5。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202506181693256599",
+      "document_class": "single|row_period|product_service",
+      "table_profile": {
+        "table_id": "p6:4",
+        "page": 6,
+        "title": "本集團之收益分析如下:",
+        "title_family": "本集團之收益分析如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "primary_revenue_analysis",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [],
+        "row_count": 8,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n千港元",
+          "二零二四年\n千港元"
+        ],
+        [
+          "收益:",
+          "",
+          ""
+        ],
+        [
+          "以公平值計入損益賬之股本投資之股息收入",
+          "422",
+          "265"
+        ],
+        [
+          "按攤銷成本計量之債務投資之利息收入",
+          "5,372",
+          "3,702"
+        ],
+        [
+          "其他應收款項之利息收入",
+          "742",
+          "1,349"
+        ],
+        [
+          "經紀之利息收入",
+          "1",
+          "1"
+        ],
+        [
+          "銀行存款之利息收入",
+          "1",
+          "1"
+        ],
+        [
+          "",
+          "6,538",
+          "5,318"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p14:9",
+          "title": "本年度上市投資虧損約6,200,000港元指上市證券之未變現虧損淨額約3,200,000港元及出售上市證券之已變現虧損淨額約3,400,000港元,扣除已收股息約400,000港元。有關此等已變現虧損淨額及未變現收益淨額的更多資料載列如下:",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p14:10",
+          "title": "本年度上市投資虧損約6,200,000港元指上市證券之未變現虧損淨額約3,200,000港元及出售上市證券之已變現虧損淨額約3,400,000港元,扣除已收股息約400,000港元。有關此等已變現虧損淨額及未變現收益淨額的更多資料載列如下:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648703371",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p7:5",
+        "page": 7,
+        "title": "(a) 來自客户合約收益明細",
+        "title_family": "a來自客户合約收益明細",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 6,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至十二月三十一日止年度",
+          "截至十二月三十一日止年度"
+        ],
+        [
+          "二零二四年人民幣千元",
+          "二零二三年人民幣千元"
+        ],
+        [
+          "銷售PHC管樁",
+          "115,594",
+          "120,581"
+        ],
+        [
+          "銷售商品混凝土",
+          "68,877",
+          "115,013"
+        ],
+        [
+          "銷售陶粒混凝土板",
+          "861",
+          "9,437"
+        ],
+        [
+          "",
+          "185,332",
+          "245,031"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p7:6",
+          "title": "(a) 來自客户合約收益明細",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p7:7",
+          "title": "(a) 來自客户合約收益明細",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p9:10",
+          "title": "6. 融資收入/(成本)淨額",
+          "role": "generic_revenue",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p9:11",
+          "title": "6. 融資收入/(成本)淨額",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603271820819081",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p12:6",
+        "page": 12,
+        "title": "(a) 分類收益資料",
+        "title_family": "a分類收益資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 9,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n人民幣千元",
+          "二零二四年\n人民幣千元"
+        ],
+        [
+          "貨物或服務類型",
+          "",
+          ""
+        ],
+        [
+          "銷售物業",
+          "9,707,534",
+          "33,331,088"
+        ],
+        [
+          "管理諮詢服務",
+          "6,137",
+          "9,354"
+        ],
+        [
+          "總計",
+          "9,713,671",
+          "33,340,442"
+        ],
+        [
+          "收益確認時間:",
+          "",
+          ""
+        ],
+        [
+          "物業或貨物於某一時間點轉移",
+          "9,707,534",
+          "33,331,088"
+        ],
+        [
+          "服務隨時間轉移",
+          "6,137",
+          "9,354"
+        ],
+        [
+          "總計",
+          "9,713,671",
+          "33,340,442"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p12:5",
+          "title": "對收益的分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p12:7",
+          "title": "(a) 分類收益資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p13:8",
+          "title": "就管理諮詢服務而言,本集團按與本集團迄今為止對客户提供服務的價值直接對應的開票權金額確認收益。大部分管理諮詢服務合約並無固定期限。交付前及諮詢服務合約的期限一般設定為於對手方告知本集團不再需要該等服務時屆滿。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p23:18",
+          "title": "下表載列本集團於所示年度物業銷售已確認收益的地區明細:",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p24:19",
+          "title": "本集團的收益由二零二四年度的人民幣33,416.9百萬元減少70.7%至二零二五年度的人民幣9,792.3百萬元,主要是由於交付建築面積減少。下表載列本集團於所示年度各組成部分的收益、佔總收益的百分比及相關變動。",
+          "role": "generic_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603311820928956",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p8:8",
+        "page": 8,
+        "title": "(a) 收入分類資料",
+        "title_family": "a收入分類資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "product_service_breakdown",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 13,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n人民幣千元",
+          "二零二四年\n人民幣千元"
+        ],
+        [
+          "貨品或服務類型",
+          "",
+          ""
+        ],
+        [
+          "鎳產品銷售",
+          "37,721,505",
+          "28,255,139"
+        ],
+        [
+          "其他",
+          "2,518,281",
+          "977,819"
+        ],
+        [
+          "總計",
+          "40,239,786",
+          "29,232,958"
+        ],
+        [
+          "地域市場",
+          "",
+          ""
+        ],
+        [
+          "中國內地",
+          "34,217,642",
+          "25,585,753"
+        ],
+        [
+          "其他",
+          "6,022,144",
+          "3,647,205"
+        ],
+        [
+          "總計",
+          "40,239,786",
+          "29,232,958"
+        ],
+        [
+          "收入確認的時間",
+          "",
+          ""
+        ],
+        [
+          "於某個時間點轉移的貨品",
+          "38,822,087",
+          "27,518,669"
+        ],
+        [
+          "隨時間轉移的服務",
+          "1,417,699",
+          "1,714,289"
+        ],
+        [
+          "總計",
+          "40,239,786",
+          "29,232,958"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p2:0",
+          "title": "財務資料",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p7:5",
+          "title": "上述大部分收入資料均基於發貨目的地,惟航運服務收入基於客户所在地點除外。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p8:7",
+          "title": "收入的分析载列如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p8:9",
+          "title": "(a) 收入分類資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p35:25",
+          "title": "下表載列於截至二零二五年十二月三十一日及二零二四年十二月三十一日止年度按業務分部劃分並以絕對金額及佔總收入百分比列示的總收入明細:",
+          "role": "segment_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603271820814019",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p9:6",
+        "page": 9,
+        "title": "(a) 收入按類別分析",
+        "title_family": "a收入按類別分析",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 17,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "來自客户合同的收入",
+          "",
+          ""
+        ],
+        [
+          "提供建築工程服務:",
+          "",
+          ""
+        ],
+        [
+          "-在一段時間內確認",
+          "11,852,095",
+          "14,135,006"
+        ],
+        [
+          "銷售物業:",
+          "",
+          ""
+        ],
+        [
+          "-在某一時點確認",
+          "5,411,561",
+          "5,269,450"
+        ],
+        [
+          "銷售建築材料:",
+          "",
+          ""
+        ],
+        [
+          "-在某一時點確認",
+          "857,130",
+          "965,871"
+        ],
+        [
+          "-在一段時間內確認",
+          "1,466,268",
+          "1,576,591"
+        ],
+        [
+          "",
+          "2,323,398",
+          "2,542,462"
+        ],
+        [
+          "來自其他的收入:",
+          "",
+          ""
+        ],
+        [
+          "-在某一時點確認",
+          "233,171",
+          "226,325"
+        ],
+        [
+          "-在一段時間內確認",
+          "26,071",
+          "26,069"
+        ],
+        [
+          "",
+          "259,242",
+          "252,394"
+        ],
+        [
+          "其他來源收入:",
+          "",
+          ""
+        ],
+        [
+          "-租賃收入",
+          "100,372",
+          "139,404"
+        ],
+        [
+          "",
+          "19,946,668",
+          "22,338,716"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p2:0",
+          "title": "合併利潤表",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p9:7",
+          "title": "(a) 收入按類別分析",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p10:8",
+          "title": "合同資產是本集團提供建築工程服務和安裝建築材料時,確認收入超過向客户開票金額的未開票部分。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p10:9",
+          "title": "因在本報告年度確認收入相應結轉期初合同負債的明細列示如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p10:10",
+          "title": "因在本報告年度確認收入相應結轉期初合同負債的明細列示如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p19:26",
+          "title": "營業額",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p19:27",
+          "title": "營業額",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p19:28",
+          "title": "營業額",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p21:31",
+          "title": "2025年度,物業銷售收入主要來自以下項目:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p26:34",
+          "title": "截至2025年12月31日止年度,本集團建築材料業務主要產品之營業額分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603261820775161",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p12:11",
+        "page": 12,
+        "title": "(a) 收入資料劃分",
+        "title_family": "a收入資料劃分",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "business",
+          "product_service"
+        ],
+        "row_count": 12,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "精準營銷服務",
+          "1,331,390",
+          "716,425"
+        ],
+        [
+          "AI應用業務",
+          "1,486,633",
+          "842,161"
+        ],
+        [
+          "總計",
+          "2,818,023",
+          "1,558,586"
+        ],
+        [
+          "確認收入的時間",
+          "",
+          ""
+        ],
+        [
+          "",
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "精準營銷服務",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點",
+          "1,331,390",
+          "716,425"
+        ],
+        [
+          "AI應用業務",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點",
+          "682,645",
+          "87,655"
+        ],
+        [
+          "隨時間",
+          "803,988",
+          "754,506"
+        ],
+        [
+          "總計",
+          "2,818,023",
+          "1,558,586"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p11:10",
+          "title": "提交予主要經營決策者的其他資料(連同分部資料)的計量方式乃與財務報表所應用者一致。由於主要經營決策者並無使用任何獨立分部資產及分部負債資料分配資源或評估經營分部的表現,因此其並無獲提供有關資料。",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p30:37",
+          "title": "AI 應用業務的收入由2024年的人民幣842.2百萬元增加76.5%至2025年的人民幣1,486.6百萬元。精準營銷服務收入由2024年的人民幣716.4百萬元增加85.8%至2025年的人民幣1,331.4百萬元。下表載列於所示期間按業務分部劃分的收入明細,以絕對金額及佔總收入的百分比列示:",
+          "role": "segment_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p32:38",
+          "title": "下表載列於所示年度按業務類型根據絕對金額及佔各自收入的百分比劃分的毛利及毛利率明細:",
+          "role": "revenue_with_metrics",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603201820673139",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p18:10",
+        "page": 18,
+        "title": "(a) 收益的分類資料",
+        "title_family": "a收益的分類資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 4,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年人民幣千元",
+          "2024年人民幣千元"
+        ],
+        [
+          "於某一時間段內轉至客户的服務產生的收益",
+          "1,353,189",
+          "1,235,242"
+        ],
+        [
+          "於某一時間點轉至客户的商品或服務產生的收益",
+          "415,521",
+          "201,767"
+        ],
+        [
+          "總計",
+          "1,768,710",
+          "1,437,009"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p18:8",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p18:9",
+          "title": "(a) 收益的分類資料",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p23:13",
+          "title": "若干附屬公司符合小型微利企業的標準且年度應課稅收入低於人民幣3,000,000元,而其實際應課稅收入按其年度應課稅收入的25%計算。該等附屬公司按上文所述計算的應課稅收入自2023年1月1日起至2027年12月31日止可享有20%的企業所得稅優惠稅率。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p23:14",
+          "title": "若干附屬公司符合小型微利企業的標準且年度應課稅收入低於人民幣3,000,000元,而其實際應課稅收入按其年度應課稅收入的25%計算。該等附屬公司按上文所述計算的應課稅收入自2023年1月1日起至2027年12月31日止可享有20%的企業所得稅優惠稅率。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p33:31",
+          "title": "來自我們的MPaaS產品的收益主要源自QCDN、Kodo、互動直播產品和Dora。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p34:32",
+          "title": "下表載列於所示期間根據向APaaS客户提供的場景化解決方案分類,按應用場景劃分的來自APaaS解決方案的收益明細(以絕對金額及佔APaaS解決方案收益的百分比列示)。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p38:34",
+          "title": "下表載列我們於所示期間的毛利(以絕對金額及佔收益的百分比(即毛利率)列示):",
+          "role": "revenue_with_metrics",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603201820669972",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p6:6",
+        "page": 6,
+        "title": "(a) 細分收入資料",
+        "title_family": "a細分收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "product_service_breakdown",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 15,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至12月31日止年度",
+          "截至12月31日止年度"
+        ],
+        [
+          "2025年",
+          "2024年"
+        ],
+        [
+          "人民幣千元",
+          "人民幣千元"
+        ],
+        [
+          "貨品或服務類型",
+          "",
+          ""
+        ],
+        [
+          "FastAGI企業級人工智能解決方案",
+          "254,466",
+          "90,396"
+        ],
+        [
+          "FastData企業級數據智能解決方案",
+          "160,525",
+          "152,530"
+        ],
+        [
+          "總計",
+          "414,991",
+          "242,926"
+        ],
+        [
+          "地區市場",
+          "",
+          ""
+        ],
+        [
+          "中國內地",
+          "412,498",
+          "242,926"
+        ],
+        [
+          "香港",
+          "2,493",
+          "-"
+        ],
+        [
+          "總計",
+          "414,991",
+          "242,926"
+        ],
+        [
+          "收入確認時間",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點轉移的貨品及服務",
+          "407,097",
+          "240,733"
+        ],
+        [
+          "於某時間段轉移的服務",
+          "7,894",
+          "2,193"
+        ],
+        [
+          "總計",
+          "414,991",
+          "242,926"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p6:5",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p6:7",
+          "title": "(a) 細分收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p8:10",
+          "title": "就於香港產生的估計應課稅利潤而言,在香港註冊成立的附屬公司須就不超過2百萬港元的應課稅收入按 \\(8.25\\%\\) 的稅率及就應課稅收入中超過2百萬港元的部分按 \\(16.5\\%\\) 的稅率繳納香港利得稅。由於本集團於報告期間並無源自香港或在香港賺取的應課稅利潤,故並無作出香港利得稅撥備。",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p8:11",
+          "title": "就於香港產生的估計應課稅利潤而言,在香港註冊成立的附屬公司須就不超過2百萬港元的應課稅收入按 \\(8.25\\%\\) 的稅率及就應課稅收入中超過2百萬港元的部分按 \\(16.5\\%\\) 的稅率繳納香港利得稅。由於本集團於報告期間並無源自香港或在香港賺取的應課稅利潤,故並無作出香港利得稅撥備。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p10:14",
+          "title": "於各報告期間末基於收入確認日期及扣除虧損撥備的貿易應收款項及應收票據之賬齡分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p10:15",
+          "title": "於各報告期間末基於收入確認日期及扣除虧損撥備的貿易應收款項及應收票據之賬齡分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p14:19",
+          "title": "我們從銷售FastData企業級數據智能解決方案及FastAGI企業級人工智能解決方案獲得收入。下表載列於所示期間我們按業務分部劃分的收入明細,以金額及佔我們總收入的百分比列示:",
+          "role": "segment_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "business",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603301820875759",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p13:9",
+        "page": 13,
+        "title": "(i) 分類收益資料",
+        "title_family": "i分類收益資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "product_service_breakdown",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 12,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至12月31日止年度",
+          "截至12月31日止年度"
+        ],
+        [
+          "2025年\n人民幣千元",
+          "2024年\n人民幣千元"
+        ],
+        [
+          "貨品或服務類型",
+          "",
+          ""
+        ],
+        [
+          "疫苗銷售",
+          "1,165,662",
+          "1,261,446"
+        ],
+        [
+          "研發服務",
+          "11",
+          "23,585"
+        ],
+        [
+          "",
+          "1,165,673",
+          "1,285,031"
+        ],
+        [
+          "地區市場",
+          "",
+          ""
+        ],
+        [
+          "中國內地",
+          "1,165,298",
+          "1,278,217"
+        ],
+        [
+          "其他國家/地區",
+          "375",
+          "6,814"
+        ],
+        [
+          "",
+          "1,165,673",
+          "1,285,031"
+        ],
+        [
+          "收益確認時間",
+          "",
+          ""
+        ],
+        [
+          "於某時間點轉讓的貨品或服務",
+          "1,165,673",
+          "1,285,031"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p12:7",
+          "title": "由於本集團的非流動資產在本年度位於中國,因此並無列報更多地理資料。以下持續經營業務的收入資料以客户所在地為基礎。",
+          "role": "geography_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p13:8",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p13:10",
+          "title": "(i) 分類收益資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603271820810601",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p8:7",
+        "page": 8,
+        "title": "(i) 收入分類資料",
+        "title_family": "i收入分類資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 18,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二五年\n人民幣千元",
+          "二零二四年\n人民幣千元"
+        ],
+        [
+          "產品或服務的類型",
+          "",
+          ""
+        ],
+        [
+          "家用空調銷售",
+          "24,887,222",
+          "24,568,233"
+        ],
+        [
+          "中央空調銷售",
+          "3,214,307",
+          "3,169,839"
+        ],
+        [
+          "家用空調安裝服務",
+          "1,348,199",
+          "1,336,230"
+        ],
+        [
+          "中央空調安裝服務",
+          "70,257",
+          "53,661"
+        ],
+        [
+          "其他*",
+          "486,324",
+          "579,249"
+        ],
+        [
+          "總計",
+          "30,006,309",
+          "29,707,212"
+        ],
+        [
+          "收入確認時間",
+          "",
+          ""
+        ],
+        [
+          "於某個時間點確認收入:",
+          "",
+          ""
+        ],
+        [
+          "家用空調銷售",
+          "24,887,222",
+          "24,568,233"
+        ],
+        [
+          "中央空調銷售",
+          "3,214,307",
+          "3,169,839"
+        ],
+        [
+          "家用空調安裝服務",
+          "1,348,199",
+          "1,336,230"
+        ],
+        [
+          "中央空調安裝服務",
+          "70.257",
+          "53,661"
+        ],
+        [
+          "其他-廢料及原材料銷售",
+          "355,032",
+          "521,228"
+        ],
+        [
+          "隨時間確認收入:",
+          "",
+          ""
+        ],
+        [
+          "其他",
+          "131,292",
+          "58,021"
+        ],
+        [
+          "總計",
+          "30,006,309",
+          "29,707,212"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p7:4",
+          "title": "地區資料",
+          "role": "geography_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p7:5",
+          "title": "上述收入資料是根據客户地點呈列。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p8:6",
+          "title": "收入分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p15:16",
+          "title": "本集團基於收入確認日期的貿易應收款項(扣除虧損撥備)的賬齡分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p37:23",
+          "title": "下表呈列二零二五年及二零二四年本公司按產品類別劃分的收入確實金額及百分比:",
+          "role": "primary_revenue_detail",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p37:24",
+          "title": "下表呈列於二零二五年及二零二四年本公司按品牌劃分收入的實際金額及百分比:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_metric_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p38:25",
+          "title": "下表呈列於二零二五年及二零二四年本公司按地理位置劃分的收入的分項數字,包括實際金額和佔總收入的百分比:",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p39:27",
+          "title": "下表呈列於二零二五年及二零二四年本公司的銷售及分銷開支以及佔收入的百分比:",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p39:28",
+          "title": "下表呈列於二零二五年及二零二四年本公司的行政費用開支以及佔收入的百分比:",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p40:29",
+          "title": "下表呈列於二零二五年及二零二四年本公司的研發開支以及佔收入的百分比:",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648696245",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p21:14",
+        "page": 21,
+        "title": "(i) 細分收入資料",
+        "title_family": "i細分收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 5,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2024年\n千港元",
+          "2023年\n千港元"
+        ],
+        [
+          "確認收入的時間",
+          "",
+          ""
+        ],
+        [
+          "於一個時點轉移的服務",
+          "63,161",
+          "33,288"
+        ],
+        [
+          "於一段時間內轉移的服務",
+          "2,338,161",
+          "1,967,701"
+        ],
+        [
+          "",
+          "2,401,322",
+          "2,000,989"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p11:3",
+          "title": "經調整EBITDA為未計融資成本、融資收入、所得稅、折舊及攤銷、股權結算購股權開支及其他一次性開支前的盈利。這並非一種國際財務報告準則計量方法。經調整EBITDA作為一項補充披露單獨呈列,原因是我們的董事相信,此方法廣泛用以衡量表現且作為一項估值基準。本集團呈列此項目的原因是,本集團認為這是本集團管理層以及分析員或投資者用以衡量本集團營運表現的一種重要的補充計量方法。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p12:4",
+          "title": "下表列示我們按訂閱型SaaS業務及交易型SaaS業務中各類產品劃分的收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p20:10",
+          "title": "地區資料",
+          "role": "geography_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p20:11",
+          "title": "以上收入資料乃基於客户所在地點。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p21:13",
+          "title": "收入、其他收入及收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p21:15",
+          "title": "(i) 細分收入資料",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503261647883996",
+      "document_class": "multi_axis|business+product_service",
+      "table_profile": {
+        "table_id": "p14:12",
+        "page": 14,
+        "title": "(i) 細分收益資料",
+        "title_family": "i細分收益資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "period_unstated",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "product_service_breakdown",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "business",
+          "product_service"
+        ],
+        "row_count": 11,
+        "column_count": 5,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|period_unstated",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "分部",
+          "輪式推車\n(千港元)",
+          "汽車座椅\n(千港元)",
+          "其他類別\n(千港元)",
+          "總計\n(千港元)"
+        ],
+        [
+          "貨品或服務類型",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "貨品銷售",
+          "3,671,942",
+          "3,873,957",
+          "1,188,558",
+          "8,734,457"
+        ],
+        [
+          "提供測試服務",
+          "-",
+          "-",
+          "31,448",
+          "31,448"
+        ],
+        [
+          "合計",
+          "3,671,942",
+          "3,873,957",
+          "1,220,006",
+          "8,765,905"
+        ],
+        [
+          "收入確認時間",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "於某一時間點轉移的貨品",
+          "3,671,942",
+          "3,873,957",
+          "1,188,558",
+          "8,734,457"
+        ],
+        [
+          "於某一時間點轉移的服務",
+          "-",
+          "-",
+          "31,448",
+          "31,448"
+        ],
+        [
+          "合計",
+          "3,671,942",
+          "3,873,957",
+          "1,220,006",
+          "8,765,905"
+        ],
+        [
+          "客户合約收入",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "外部客户",
+          "3,671,942",
+          "3,873,957",
+          "1,220,006",
+          "8,765,905"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "年度業績",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p14:11",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p15:13",
+          "title": "截至2023年12月31日止年度",
+          "role": "product_service_breakdown",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p16:17",
+          "title": "5. 財務收入",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p18:20",
+          "title": "本集團所有於中華人民共和國(「中國」)註冊及僅於中國內地經營業務的附屬公司須按稅率25%就其於中國法定賬目內呈報的應課稅收入繳納中國企業所得稅(「企業所得稅」)根據相關中國所得稅法作出調整)。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "business",
+          "eligible": true
+        },
+        {
+          "table_id": "p35:45",
+          "title": "本集團的收益概要:",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "business",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503191644724671",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p29:10",
+        "page": 29,
+        "title": "下表載列所示期間不同類別保險產品的保險服務收入明細:",
+        "title_family": "下表載列所示期間不同類別保險產品的保險服務收入明細",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 14,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "(人民幣千元)",
+          "截至12月31日止年度",
+          "截至12月31日止年度",
+          "截至12月31日止年度"
+        ],
+        [
+          "2024年",
+          "2023年",
+          "變動"
+        ],
+        [
+          "健康險",
+          "10,502,881",
+          "9,311,830",
+          "12.8%"
+        ],
+        [
+          "保證保險",
+          "3,855,251",
+          "4,444,729",
+          "(13.3%)"
+        ],
+        [
+          "意外險",
+          "2,032,118",
+          "2,339,077",
+          "(13.1%)"
+        ],
+        [
+          "汽車保險",
+          "1,842,691",
+          "1,434,755",
+          "28.4%"
+        ],
+        [
+          "信用保險",
+          "872,350",
+          "875,711",
+          "(0.4%)"
+        ],
+        [
+          "家庭財產保險",
+          "1,104,229",
+          "498,560",
+          "121.5%"
+        ],
+        [
+          "責任險",
+          "1,066,891",
+          "446,279",
+          "139.1%"
+        ],
+        [
+          "貨運險",
+          "131,741",
+          "79,248",
+          "66.2%"
+        ],
+        [
+          "其他(1)",
+          "10,336,191",
+          "8,091,157",
+          "27.7%"
+        ],
+        [
+          "其中:",
+          "",
+          "",
+          ""
+        ],
+        [
+          "退貨運費險",
+          "8,739,526",
+          "6,467,872",
+          "35.1%"
+        ],
+        [
+          "總計",
+          "31,744,343",
+          "27,521,347",
+          "15.3%"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p14:4",
+          "title": "下表分別載列我們截至2024年12月31日止年度及截至2023年12月31日止年度按生態細分的以下各項明細:(i)總保費、(ii)保險服務收入、(iii)綜合費用率、(iv)綜合賠付率及(v)承保綜合成本率。其中綜合費用率、綜合賠付率及承保綜合成本率均為未考慮分出再保險合同保險淨損益及分出再保險財務收益/(損失)的計算結果:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p111:41",
+          "title": "預期現金流量採用經調整以反映保險合同現金流量特徵及流動性的無風險收益率曲線予以貼現。本集團一般採用中國國債收益率釐定無風險利率。",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p112:42",
+          "title": "分部資產及負債以及分部收益、費用及業績均按本集團的會計政策計量。用於編製本集團財務報表的會計政策與用於編製經營分部資料的會計政策之間並無差異。",
+          "role": "segment_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p162:115",
+          "title": "(b) 主要合營公司詳情(續)",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503251647411107",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p25:30",
+        "page": 25,
+        "title": "下表載列本集團按業務分類劃分的收益明細:",
+        "title_family": "下表載列本集團按業務分類劃分的收益明細",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "business",
+          "product_service"
+        ],
+        "row_count": 10,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至十二月三十一日止年度",
+          "截至十二月三十一日止年度",
+          "截至十二月三十一日止年度"
+        ],
+        [
+          "二零二四年 人民幣千元",
+          "二零二三年 人民幣千元",
+          "變動 %"
+        ],
+        [
+          "模具銷售",
+          "",
+          "",
+          ""
+        ],
+        [
+          "汽車模具",
+          "182,452",
+          "164,911",
+          "10.6"
+        ],
+        [
+          "電器模具",
+          "38,005",
+          "38,368",
+          "-0.9"
+        ],
+        [
+          "其他模具",
+          "2,199",
+          "720",
+          "205.4"
+        ],
+        [
+          "小計",
+          "222,656",
+          "203,999",
+          "9.1"
+        ],
+        [
+          "部件加工服務",
+          "13,082",
+          "10,863",
+          "20.4"
+        ],
+        [
+          "其他",
+          "1,908",
+          "3,836",
+          "-50.3"
+        ],
+        [
+          "總計",
+          "237,646",
+          "218,698",
+          "8.7"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p1:0",
+          "title": "財務概要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p10:6",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p10:7",
+          "title": "收益分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p12:9",
+          "title": "本集團的每份合約只有一項履約責任,而所有收益均於報告期的某一個時間點確認。於報告期末,與尚未達成的現有合約內的履約責任有關的交易價格如下:",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:12",
+          "title": "根據開曼群島的規則及法規,本公司無須繳納開曼群島任何所得稅。中國應課稅溢利稅項按適用中國企業所得稅(「企業所得稅」)稅率25%計算。勛龍(蘇州)獲認可為高新技術企業,並享有優惠所得稅率15%。勛展、勛厚及昆山龍駿獲認可為小微企業(「小微企業」),且由於其個別應課稅收入低於人民幣1百萬元,故享有應課稅收入減免75%及優惠所得稅率20%。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:13",
+          "title": "根據開曼群島的規則及法規,本公司無須繳納開曼群島任何所得稅。中國應課稅溢利稅項按適用中國企業所得稅(「企業所得稅」)稅率25%計算。勛龍(蘇州)獲認可為高新技術企業,並享有優惠所得稅率15%。勛展、勛厚及昆山龍駿獲認可為小微企業(「小微企業」),且由於其個別應課稅收入低於人民幣1百萬元,故享有應課稅收入減免75%及優惠所得稅率20%。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202601211818179056",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p25:24",
+        "page": 25,
+        "title": "下表載列本集團的物業管理服務收入明細:",
+        "title_family": "下表載列本集團的物業管理服務收入明細",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "metric_columns",
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 6,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "截至12月31日止年度",
+          "截至12月31日止年度",
+          "截至12月31日止年度"
+        ],
+        [
+          "2024年物業管理服務收入人民幣千元",
+          "增長率%",
+          "2023年物業管理服務收入人民幣千元"
+        ],
+        [
+          "本集團管理的物業為:"
+        ],
+        [
+          "由新城控股開發",
+          "2,148,575",
+          "6.4",
+          "2,018,695"
+        ],
+        [
+          "由第三方開發",
+          "1,427,375",
+          "-7.1",
+          "1,536,411"
+        ],
+        [
+          "合計",
+          "3,575,950",
+          "0.6",
+          "3,555,106"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p2:0",
+          "title": "未經審核全年業績摘要",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p3:1",
+          "title": "未經審核綜合全面收入表",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p9:7",
+          "title": "收入主要包括物業管理服務及增值服務所得款項。截至2024年及2023年12月31日止年度,本集團按類別劃分的收入及銷售及服務成本分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p11:10",
+          "title": "7 財務收入淨額",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p11:11",
+          "title": "7 財務收入淨額",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p15:15",
+          "title": "(a) 貿易應收款項主要來自按包乾制進行管理的物業管理服務及增值服務。按包乾制進行管理的物業管理服務的收入乃根據相關物業服務協議條款收取。業主於提供服務後支付到期的物業管理服務收入。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p24:23",
+          "title": "本集團的收入來源於三個類別:(i)物業管理服務;(ii)社區增值服務;及(iii)開發商增值服務。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p25:25",
+          "title": "下表載列本集團的物業管理服務收入明細:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202506181692999446",
+      "document_class": "same_title_family|product_service",
+      "table_profile": {
+        "table_id": "p11:7",
+        "page": 11,
+        "title": "以下為本集團按呈報及經營分類劃分之收入及業績分析:",
+        "title_family": "以下為本集團按呈報及經營分類劃分之收入及業績分析",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "period_unstated",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 6,
+        "column_count": 4,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|period_unstated",
+        "table_relation": "same_title_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "接駁產品\n千港元",
+          "全面建築\n服務合約\n千港元",
+          "總計\n千港元"
+        ],
+        [
+          "分類收入",
+          "64,244",
+          "3,500",
+          "67,744"
+        ],
+        [
+          "分類業績",
+          "167",
+          "1,680",
+          "1,847"
+        ],
+        [
+          "未分配收入",
+          "",
+          "",
+          "6,866"
+        ],
+        [
+          "未分配開支",
+          "",
+          "",
+          "(48,465)"
+        ],
+        [
+          "除稅前虧損",
+          "",
+          "",
+          "(39,752)"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p11:8",
+          "title": "以下為本集團按呈報及經營分類劃分之收入及業績分析:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p14:11",
+          "title": "本集團之外來客户收入資料乃按客户地理位置呈列。本集團之非流動資產資料乃按資產地理位置呈列。",
+          "role": "geography_revenue",
+          "geometry": "row_metric_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p14:12",
+          "title": "本集團之外來客户收入資料乃按客户地理位置呈列。本集團之非流動資產資料乃按資產地理位置呈列。",
+          "role": "geography_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "geography",
+          "eligible": false
+        },
+        {
+          "table_id": "p16:14",
+          "title": "於報告期末(與收入確認日期相若)按發票日期呈列之貿易應收賬款之賬齡分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202603131820555599",
+      "document_class": "same_title_family|product_service",
+      "table_profile": {
+        "table_id": "p10:6",
+        "page": 10,
+        "title": "以下為本集團按報告分類劃分之營業額及業績分析:",
+        "title_family": "以下為本集團按報告分類劃分之營業額及業績分析",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "period_unstated",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 8,
+        "column_count": 5,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|period_unstated",
+        "table_relation": "same_title_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "租賃\n港幣千元",
+          "物業\n發展及\n投資\n港幣千元",
+          "海上\n旅遊服務\n和酒店\n港幣千元",
+          "總計\n港幣千元"
+        ],
+        [
+          "綜合損益表呈列之營業額",
+          "412,582",
+          "137,577",
+          "28,836",
+          "578,995"
+        ],
+        [
+          "分類業績",
+          "118,655",
+          "40,741",
+          "(6,424)",
+          "152,972"
+        ],
+        [
+          "投資物業之公平值虧損",
+          "",
+          "",
+          "",
+          "(13,634)"
+        ],
+        [
+          "未分配融資成本",
+          "",
+          "",
+          "",
+          "(11,578)"
+        ],
+        [
+          "未分配企業開支",
+          "",
+          "",
+          "",
+          "(29,737)"
+        ],
+        [
+          "未分配企業收入",
+          "",
+          "",
+          "",
+          "4,360"
+        ],
+        [
+          "除稅前溢利",
+          "",
+          "",
+          "",
+          "102,383"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p8:4",
+          "title": "本集團來自客户合約之營業額之分列賬款",
+          "role": "generic_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p10:7",
+          "title": "以下為本集團按報告分類劃分之營業額及業績分析:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p20:27",
+          "title": "於回顧期內,本集團主要自租賃業務、物業發展及投資以及海上旅遊服務和酒店中獲取收益。各分類的營業額及業績的明細詳列如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503281648777940",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p9:9",
+        "page": 9,
+        "title": "來自客户合約收益之細分",
+        "title_family": "來自客户合約收益之細分",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_row_partial",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 6,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "二零二四年\n千美元",
+          "二零二三年\n千美元"
+        ],
+        [
+          "來自客户合約收益",
+          "",
+          ""
+        ],
+        [
+          "生產及銷售石墨產品",
+          "344,800",
+          "36,794"
+        ],
+        [
+          "製造及銷售電子產品",
+          "86,205",
+          "68,402"
+        ],
+        [
+          "電子產品設計",
+          "77",
+          "486"
+        ],
+        [
+          "",
+          "431,082",
+          "105,682"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p7:5",
+          "title": "本集團於本年度按經營分部之收益及業績分析如下:",
+          "role": "segment_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p8:6",
+          "title": "截至二零二三年十二月三十一日止年度",
+          "role": "generic_revenue",
+          "geometry": "row_identity_total_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p9:10",
+          "title": "來自客户合約收益之細分",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503271648230209",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p283:156",
+        "page": 283,
+        "title": "23. 保險服務收入",
+        "title_family": "保險服務收入",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "measurement_unstated",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 8,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "2024",
+          "2023"
+        ],
+        [
+          "未以保費分配法計量的合同",
+          "",
+          ""
+        ],
+        [
+          "預計當期發生的保險服務費用",
+          "18,475",
+          "19,180"
+        ],
+        [
+          "合同服務邊際的攤銷",
+          "15,667",
+          "15,122"
+        ],
+        [
+          "保險獲取現金流量的攤銷",
+          "9,174",
+          "9,011"
+        ],
+        [
+          "非金融風險調整的變動",
+          "810",
+          "845"
+        ],
+        [
+          "以保費分配法計量的合同",
+          "3,686",
+          "3,887"
+        ],
+        [
+          "合計",
+          "47,812",
+          "48,045"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p35:21",
+          "title": "(2) 保費收入居前5位的保險產品",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p35:22",
+          "title": "(2) 保費收入居前5位的保險產品",
+          "role": "primary_revenue_detail",
+          "geometry": "unsupported",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p36:24",
+          "title": "7、保險服務收入、保險服務費用分析",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p41:30",
+          "title": "扣除無需外部評級的非固定收益類金融產品和組合類保險資產管理產品,截至2024年12月31日,公司存量的非標資產AAA級佔比達99.9%,整體信用風險較小,安全性高。",
+          "role": "primary_revenue_detail",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p247:114",
+          "title": "本集團根據經營租賃安排出租其投資性房地產(附註7)。租賃條款通常要求租户支付保證金,並根據當時的市場情況進行定期租金調整。本集團於本年度確認的租金收入為人民幣321百萬元(2023年度:人民幣413百萬元),其詳細信息包含在財務報表附註26中。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p281:155",
+          "title": "22. 儲備及留存收益",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p295:174",
+          "title": "資本性承諾主要為購買物業、廠房與設備和軟件等承諾。管理層確信本集團的未來淨收入及其他籌資來源將足夠支付該等資本性承諾。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202503311649706029",
+      "document_class": "multiple_mixed_geometry|product_service",
+      "table_profile": {
+        "table_id": "p12:5",
+        "page": 12,
+        "title": "分拆收入資料",
+        "title_family": "分拆收入資料",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "currency_and_unit",
+        "prior_alignment": "prior_no_hit",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "product_service_breakdown",
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 10,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "standalone"
+      },
+      "raw_table": [
+        [
+          "",
+          "2024\n人民幣千元",
+          "2023\n人民幣千元"
+        ],
+        [
+          "貨品或服務類型",
+          "",
+          ""
+        ],
+        [
+          "酒類收入",
+          "370,154",
+          "367,541"
+        ],
+        [
+          "電器及消費電子產品收入",
+          "100,635",
+          "263,895"
+        ],
+        [
+          "其他商品收入",
+          "3,027",
+          "15,468"
+        ],
+        [
+          "",
+          "473,816",
+          "646,904"
+        ],
+        [
+          "地域市場",
+          "",
+          ""
+        ],
+        [
+          "中國內地",
+          "473,816",
+          "646,904"
+        ],
+        [
+          "收入確認的時間",
+          "",
+          ""
+        ],
+        [
+          "於某時間點轉移之貨品",
+          "473,816",
+          "646,904"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p11:4",
+          "title": "收入、其他收入及利得的分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p14:7",
+          "title": "財務成本及財務收入之分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p14:8",
+          "title": "財務成本及財務收入之分析如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        }
+      ]
+    },
+    {
+      "infocode": "AN202604281821674454",
+      "document_class": "period_sibling_family|product_service",
+      "table_profile": {
+        "table_id": "p154:32",
+        "page": 154,
+        "title": "分服務及產品收入分類如下:",
+        "title_family": "分服務及產品收入分類如下",
+        "role": "primary_revenue_detail",
+        "geometry": "row_period",
+        "semantic_axis": "product_service",
+        "revenue_basis": "reported",
+        "period_layout": "multi_period",
+        "measurement": "measurement_unstated",
+        "prior_alignment": "prior_row_full",
+        "supported_as_primary_revenue": true,
+        "classification_reasons": [],
+        "title_signals": [
+          "revenue"
+        ],
+        "layout_signals": [
+          "row_identity",
+          "total_row"
+        ],
+        "axis_signals": [
+          "product_service"
+        ],
+        "row_count": 13,
+        "column_count": 3,
+        "coarse_class": "primary_revenue_detail|row_period",
+        "revenue_structure_class": "primary_revenue_detail|row_period|product_service|eligible",
+        "fine_class": "primary_revenue_detail|row_period|product_service|eligible|multi_period",
+        "table_relation": "period_sibling_family"
+      },
+      "raw_table": [
+        [
+          "",
+          "2025年",
+          "2024年"
+        ],
+        [
+          "語音通話及月租費",
+          "19,557",
+          "20,400"
+        ],
+        [
+          "寬帶及移動數據服務",
+          "153,221",
+          "154,189"
+        ],
+        [
+          "數據及互聯網應用服務",
+          "103,559",
+          "99,358"
+        ],
+        [
+          "其他增值服務",
+          "30,627",
+          "30,189"
+        ],
+        [
+          "網間結算收入",
+          "12,300",
+          "12,602"
+        ],
+        [
+          "傳輸線路使用和相關服務",
+          "24,191",
+          "24,260"
+        ],
+        [
+          "其他服務",
+          "4,283",
+          "4,977"
+        ],
+        [
+          "服務收入合計",
+          "347,738",
+          "345,975"
+        ],
+        [
+          "銷售通信產品收入",
+          "44,485",
+          "43,614"
+        ],
+        [
+          "合計",
+          "392,223",
+          "389,589"
+        ],
+        [
+          "其中:在香港財務報告準則15下來自客户合同的收入",
+          "390,902",
+          "388,337"
+        ],
+        [
+          "其他來源收入",
+          "1,321",
+          "1,252"
+        ]
+      ],
+      "competing_revenue_tables": [
+        {
+          "table_id": "p22:1",
+          "title": "下表列出了2025年和2024年公司營業成本項目以及每個項目所佔營業收入的百分比變化情況:",
+          "role": "revenue_with_metrics",
+          "geometry": "row_metric_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p78:9",
+          "title": "本集團於截至2025年12月31日止年度的首五家最大客户的總營業額並不超過本集團在該年度的營業總額的30%。",
+          "role": "generic_revenue",
+          "geometry": "unsupported",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p154:33",
+          "title": "分服務及產品收入分類如下:",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p155:35",
+          "title": "* 截至2025年及2024年12月31日止年度,未計入租賃負債計量的可變租賃付款額主要包括鐵塔資產使用費和網絡、房屋、設備和設施使用費用,以收入或使用為基礎進行計量,並在觸發付款的事件或條件發生時計入損益。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p180:66",
+          "title": "經調整會計政策差異後,主要聯營公司之財務資料以及調整為合併財務報表中的賬面價值如下:",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p182:71",
+          "title": "經調整會計政策差異後,主要合營公司之財務資料以及調整為於合併財務報表中的賬面價值如下:",
+          "role": "generic_revenue",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p183:74",
+          "title": "本集團向客户提供優惠套餐,包括捆綁手機終端銷售及提供通信服務。此類優惠套餐的合同總代價根據其獨立銷售價格分配給服務收入和手機銷售所得款。在手機控制權轉移給客户時確認與手機銷售的相關收入,並且在客户支付每月套餐費用的合同期內,逐漸收回分配給手機銷售的對價。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": false
+        },
+        {
+          "table_id": "p196:95",
+          "title": "於2025年5月29日的股東大會上,本公司經股東批准派發2024年12月31日止年度的末期股息每股普通股人民幣0.1562元,合計約人民幣47.79億元,並在截至2025年12月31日止年度的留存收益扣減中反映。",
+          "role": "generic_revenue",
+          "geometry": "row_period",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p198:99",
+          "title": "遞延收入主要為未攤銷的政府補助。",
+          "role": "generic_revenue",
+          "geometry": "mixed_hierarchy",
+          "semantic_axis": "unknown",
+          "eligible": false
+        },
+        {
+          "table_id": "p203:104",
+          "title": "以下列表為本集團與聯通集團及其子公司之間進行的重大經常性交易。本公司董事認為,該等交易於正常業務中發生。",
+          "role": "primary_revenue_detail",
+          "geometry": "row_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p208:105",
+          "title": "本集團已與聯通集團及其子公司的聯營、合營公司按與第三方交易可比的條款訂立交易。本公司董事認為,該等交易於正常業務中發生。",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        },
+        {
+          "table_id": "p208:106",
+          "title": "本集團已與聯通集團及其子公司的聯營、合營公司按與第三方交易可比的條款訂立交易。本公司董事認為,該等交易於正常業務中發生。",
+          "role": "primary_revenue_detail",
+          "geometry": "segment_matrix_period",
+          "semantic_axis": "product_service",
+          "eligible": true
+        }
+      ]
+    }
+  ]
+}
