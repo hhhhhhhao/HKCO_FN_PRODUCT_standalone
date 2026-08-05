@@ -161,11 +161,13 @@ def score_table(table, facts):
     name_hits = amount_hits = pair_hits = 0
     matched_facts = []
     for fact in facts:
-        name_positions = [
-            (row, column)
-            for row, column, value in text_cells
-            if historical_product_name_matches(fact["name"], value)
-        ]
+        name_positions = []
+        if historical_product_name_matches([fact["name"]], [table]):
+            name_positions = [
+                (row, column)
+                for row, column, value in text_cells
+                if historical_product_name_matches([fact["name"]], [{"table": [[value]]}])
+            ]
         amount_positions = [
             (row, column)
             for row, column, value in number_cells

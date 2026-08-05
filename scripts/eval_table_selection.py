@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from collections import Counter
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +20,12 @@ from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
 from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
 
+
+# 直接排除的公告，不参与评估；后续新增直接往这里加。
+EXCLUDED_INFOCODES = {
+    "AN202603271820814478",
+    "AN202603271820813335",
+}
 
 TOTAL_KEYS = {"合计", "合計", "总计", "總計", "总额", "總額", "total"}
 NUMBER_RE = re.compile(r"^\s*([（(])?\s*([+-]?[\d,]+(?:\.\d+)?)\s*[）)]?\s*$")
@@ -83,12 +91,18 @@ def _table_cells(table):
     return cells
 
 
-def _match_table(selected_table, gt_names, gt_amounts):
-    """GT 所有金额都在选中表里就算对（产品名可能写法不同）。"""
-    if selected_table is None:
+def _match_main_inner(selected_inner_lines, gt_names, gt_amounts):
+    """以 select_main_table 返回的 main_inner_lines 为准，其内所有表格金额全命中才算对。"""
+    tables = [
+        line for line in (selected_inner_lines or [])
+        if line.get("is_table") and line.get("table")
+    ]
+    if not tables:
         return False, "no_table_selected"
 
-    cells = _table_cells(selected_table)
+    cells = []
+    for table in tables:
+        cells.extend(_table_cells(table))
 
     all_numbers = []
     for c in cells:
@@ -96,15 +110,15 @@ def _match_table(selected_table, gt_names, gt_amounts):
         if v is not None:
             all_numbers.append(v)
 
-    missing_amounts = [a for a in gt_amounts
-                       if not any(math.isclose(a, v, rel_tol=1e-9, abs_tol=1e-6) for v in all_numbers)]
+    missing_amounts = [
+        a for a in gt_amounts
+        if not any(math.isclose(a, v, rel_tol=1e-9, abs_tol=1e-6) for v in all_numbers)
+    ]
     if missing_amounts:
         return False, f"missing_amounts: {missing_amounts}"
 
-    # 额外记录产品名是否全命中（仅用于参考）
     all_text = " ".join(cells)
     missing_names = [n for n in gt_names if n.lower() not in all_text.lower()]
-
     if missing_names:
         return True, f"amounts_ok_names_partial: {missing_names}"
     return True, "all_matched"
@@ -128,50 +142,93 @@ def evaluate_one(info_code, pdf_json_root, gt_rows, prior_rows):
     lines_grouped = get_lines_grouped(lines)
 
     selected_inner_lines, _ = select_main_table(lines_grouped, prior_names)
-    selected_table = next(
-        (line for line in (selected_inner_lines or [])
-         if line.get("is_table") and line.get("table")),
-        None,
-    )
+    selected_tables = [
+        line for line in (selected_inner_lines or [])
+        if line.get("is_table") and line.get("table")
+    ]
 
-    matched, reason = _match_table(selected_table, gt_names, gt_amounts)
+    matched, reason = _match_main_inner(selected_inner_lines, gt_names, gt_amounts)
 
     return {
         "infocode": info_code,
         "status": "evaluated",
         "correct": matched,
         "reason": reason,
-        "selected_page": selected_table.get("page_number") if selected_table else None,
+        "selected_page": (
+            selected_tables[0].get("page_number")
+            if selected_tables
+            else (selected_inner_lines[0].get("page_number") if selected_inner_lines else None)
+        ),
+        "selected_table_count": len(selected_tables),
+        "selected_pages": sorted({
+            table.get("page_number")
+            for table in selected_tables
+            if table.get("page_number") is not None
+        }),
         "gt_product_count": len(gt_names),
         "gt_products": gt_names,
         "gt_amounts": gt_amounts,
     }
 
 
+def _evaluate_task(task):
+    info_code, pdf_json_root, gt_rows, prior_rows = task
+    return evaluate_one(info_code, pdf_json_root, gt_rows, prior_rows)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate table selection accuracy")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=min(8, os.cpu_count() or 4),
+        help="number of worker processes",
+    )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="extra infocodes to exclude; repeatable or comma-separated",
+    )
     parser.add_argument("--output", default=str(ROOT / "analysis" / "HKCO_FN_PRODUCT" / "selection_eval.json"))
     args = parser.parse_args()
+
+    extra_excluded = set()
+    for value in args.exclude:
+        extra_excluded.update(part.strip() for part in value.split(",") if part.strip())
+    excluded_codes = EXCLUDED_INFOCODES | extra_excluded
 
     task_dir = ROOT / "tasks" / "HKCO_FN_PRODUCT"
     gt = json.loads((task_dir / "ground_truth.json").read_text(encoding="utf-8"))
     prior = json.loads((task_dir / "last_data.json").read_text(encoding="utf-8"))
     pdf_json_root = ROOT / "pdf_json"
 
-    local_codes = sorted(p.name for p in pdf_json_root.iterdir() if p.is_dir())
-    items = [(c, gt[c]) for c in local_codes if c in gt][:args.limit or None]
+    candidate = [
+        (c, gt[c])
+        for c in sorted(p.name for p in pdf_json_root.iterdir() if p.is_dir())
+        if c in gt
+    ]
+    excluded_infocodes = sorted(c for c, _ in candidate if c in excluded_codes)
+    items = [(c, rows) for c, rows in candidate if c not in excluded_codes][:args.limit or None]
 
-    results = []
-    for code, rows in items:
-        r = evaluate_one(code, pdf_json_root, rows, prior.get(code, []))
-        results.append(r)
+    tasks = [
+        (code, pdf_json_root, rows, prior.get(code, []))
+        for code, rows in items
+    ]
+    if args.workers <= 1:
+        results = [_evaluate_task(task) for task in tasks]
+    else:
+        with ProcessPoolExecutor(max_workers=args.workers) as executor:
+            results = list(executor.map(_evaluate_task, tasks, chunksize=8))
 
     correct = sum(1 for r in results if r.get("correct"))
     total = sum(1 for r in results if r["status"] == "evaluated")
 
     summary = {
         "total_documents": len(results),
+        "excluded_documents": len(excluded_infocodes),
+        "excluded_infocodes": excluded_infocodes,
         "evaluated": total,
         "correct": correct,
         "wrong": total - correct,

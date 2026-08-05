@@ -8,30 +8,66 @@ lines_grouped 中的每个 inner_lines 是一个完整章节单元，标题、�
 正式选表不使用 GT、当前期产品、GT 金额、页码排序或物理表 ID。
 """
 import re
-
+import unicodedata
 from custom.service.HKCO_FN_PRODUCT_document import match_patterns
 
-def historical_product_name_matches(left, orig_tables):
-    tables = [item['table'] for item in orig_tables]
-    tables_flatten = [cell .replace(" ", "").replace("\\n", "").replace("\n", "") for table in tables for row in table for cell in row]
-    table_text = str(tables_flatten)
-    """判断去除首尾空白并统一小写后的上期产品名能否在章节文本中命中。"""
-    left_key = left.strip().lower()
-    orig_left_key = left_key
-    if '-' in left_key:
-        left_key = left_key.split('-')[-1]
-    if ':' in left_key:
-        left_key = left_key.split(':')[0]
-    table_text = table_text.strip().lower()
-    if not left_key or not table_text:
-        return False
-    if left_key in table_text:
-        return True
-    # 长产品名：所有字符都出现在 table_text 中即算命中（不管顺序）
-    if len(orig_left_key) > 10 and '-' in orig_left_key:
-        if all(ch in table_text for ch in orig_left_key):
-            return True
-    return False
+
+def fullwidth_to_halfwidth(s):
+    s = s.replace('戶', '户')
+    # 全角转半角
+    return "".join((unicodedata.normalize("NFKC", char) if unicodedata.east_asian_width(char) in ["F", "W"] else char) for char in s)
+    
+def historical_product_name_matches(prior_names, tables):
+    """返回 prior_names 中有多少个名字能命中 tables 表格文本。"""
+    table_rows = []
+    for item in (tables or []):
+        table = item.get("table") if isinstance(item, dict) and "table" in item else item
+        if isinstance(table, (list, tuple)):
+            table_rows.extend(table)
+    tables_flatten = [
+        str(cell).replace(" ", "").replace("\\n", "").replace("\n", "")
+        for row in table_rows
+        for cell in row
+    ]
+    table_text = str(tables_flatten).strip().lower()
+
+    # text匹配
+    matched_count = 0
+    for left in prior_names:
+        left_key = left.strip().lower()
+        orig_left_key = left_key
+        if '-' in left_key:
+            left_key = left_key.split('-')[-1]
+        if ':' in left_key:
+            left_key = left_key.split(':')[0]
+        if not left_key or not table_text:
+            continue
+        if left_key in table_text:
+            matched_count += 1
+            continue
+        # 长产品名：所有字符都出现在 table_text 中即算命中（不管顺序）
+        if len(orig_left_key) > 10 and '-' in orig_left_key:
+            if all(ch in table_text for ch in orig_left_key):
+                matched_count += 1
+
+    # arr匹配
+    matched_count_arr = 0
+    for left in prior_names:
+        left_key = left.strip().lower()
+        orig_left_key = left_key
+        if '-' in left_key:
+            left_key = left_key.split('-')[-1]
+        if ':' in left_key:
+            left_key = left_key.split(':')[0]
+
+        if not left_key or not table_text:
+            continue
+        if left_key in tables_flatten:
+            matched_count_arr += 1
+            continue
+
+
+    return matched_count,matched_count_arr
 
 
 NUMBER = re.compile(r"^\s*\(?-?\d[\d,]*(?:\.\d+)?\)?\s*$")
@@ -51,12 +87,13 @@ _REGION_SPLIT_PATTERNS = [
 
 # 每一行是一个正则优先级（(pattern, group) 元组），从上到下依次匹配章节标题。
 _TABLE_CLASS_PATTERNS = [
-    [(r"經營分部|经营分部|收入及分部|收益及業績|分部收入", 0)],
+    [(r"經營分部|经营分部|收入及分部|分部資料|收益及業績|分部收入", 0)],
     [(r"外部客戶收入|外部客户收入", 0)],
     [
         (r"按.*收入.*業績", 0),
-        (r"產品收入|产品收入|服務收入|服务收入", 0),
-        (r"收入構成|收入构成|收入分拆|收入明細|收入明细|收益及分部|類別分析|类别分析|收益分類|收入分類|收益分类|收入分类|銷售貨品|销售货品|按產品|按产品|按主要產品|按主要产品", 0)
+        (r"產品收入|产品收入|服務收入|服务收入|收益、其他收入及收益", 0),
+        (r"收入構成|收入构成|收入分拆|收入明細|收入明细|收益及分部|類別分析|类别分析|收益分類|收入分類|收益分类|收入分类|銷售貨品|销售货品|按產品|按产品|按主要產品|按主要产品", 0),
+        (r"^\d+\.收入$", 0),
     ],
     # [(r"收入|收益", 0)],
     [(r"收入、資本支出及實現價格", 0)],
@@ -81,13 +118,14 @@ def _has_numbers(tables):
 def select_main_table(lines_grouped, prior_names=()):
     """按章节顺序选择唯一主章节，并返回基础过滤后的相关章节。"""
     # 上期产品名直接去重。
-    prior_names = list(set(prior_names))
+    prior_names = list(dict.fromkeys(prior_names))
     # 合计项不参与历史产品命中。
-    prior_names = [name for name in prior_names if not any(keyword in name for keyword in ['合計', '合计', '總計', '总计', '總額', '总额', 'total','公司'])]
+    prior_names = [fullwidth_to_halfwidth(name) for name in prior_names if not any(keyword in name for keyword in ['合計', '合计', '總計', '总计', '總額', '总额', 'total','公司'])]
 
     # 下标就是命中的上期产品数量。
     history_groups = [[] for _ in range(len(prior_names) + 1)]
     full_history = []
+    full_history_arr = []
 
     # 相关章节整体保留，供后续读取表格、单位和币种。
     related_inner_lines = []
@@ -97,7 +135,7 @@ def select_main_table(lines_grouped, prior_names=()):
         first_line = inner_lines[0]["text"]
         inner_lines_text = "/".join(line["text"] for line in inner_lines)
 
-        if '1.3 收入、資本支出及實現價格' in first_line:
+        if '6.營業收入/營業成本(續)' == first_line:
             print
 
         # 严格标题排除只检查章节第一行，不使用正文或表格内容触发排除。
@@ -124,10 +162,12 @@ def select_main_table(lines_grouped, prior_names=()):
 
         # 历史产品名匹配
         # 全部上期产品命中才进入 full_history
-        matched_count = sum(historical_product_name_matches(prior_name, tables) for prior_name in prior_names)
+        matched_count, matched_count_arr = historical_product_name_matches(prior_names, tables)
         history_groups[matched_count].append(inner_lines)
         if prior_names and matched_count == len(prior_names):
             full_history.append(inner_lines)
+        if prior_names and matched_count_arr == len(prior_names):
+            full_history_arr.append(inner_lines)
 
     if not related_inner_lines:
         return None, []
@@ -135,6 +175,10 @@ def select_main_table(lines_grouped, prior_names=()):
     # 只有一个全量历史命中章节时，直接选择。
     if len(full_history) == 1:
         return full_history[0], related_inner_lines
+
+    # 只有一个全量历史命中章节时，直接选择。(table命中版)
+    if len(full_history_arr) == 1:
+        return full_history_arr[0], related_inner_lines
 
     # 有全量历史命中章节时只保留它们，否则降级到历史产品命中数最高的章节。
     candidate_tables = []

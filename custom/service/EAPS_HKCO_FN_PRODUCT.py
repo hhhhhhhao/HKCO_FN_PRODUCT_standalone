@@ -7,7 +7,6 @@ import platform
 import re
 import time
 import traceback
-import unicodedata
 
 from custom.extend.pdfplumber_extend_object import ExtendPlumber
 from custom.utils.public_custom_util import (
@@ -26,7 +25,7 @@ from loguru import logger
 from shared.conf.service_conf import config
 from shared.enums.error_code_enum import ErrorCodeType
 from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
-from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
+from custom.service.HKCO_FN_PRODUCT_selector import fullwidth_to_halfwidth, select_main_table
 from custom.service.HKCO_FN_PRODUCT_extraction import extract_main_table
 from custom.service.HKCO_FN_PRODUCT_metric_enrichment import enrich_metrics
 from custom.service.EAPS_HKCO_FN_PRODUCT_format_data import format_records
@@ -44,6 +43,8 @@ def parse_mineru_result_to_lines(pages_data,page_num):
         if not line.get('content'):
             continue
         if line.get('type') == 'table':
+            if '2</td><td>71,552</td></tr></table' in line.get('content'):
+                print
             table = format_mineru_table(fullwidth_to_halfwidth(line.get('content')))
             line['table'] = table
             line['is_table'] = True
@@ -51,7 +52,7 @@ def parse_mineru_result_to_lines(pages_data,page_num):
         if line.get('x0') is None and isinstance(bbox, (list, tuple)) and bbox:
             line['x0'] = bbox[0]
         line['page_number'] = page_num
-        line['text'] = fullwidth_to_halfwidth(line['content'] )
+        line['text'] = fullwidth_to_halfwidth(line['content'] ).replace(" ", "")
 
         lines.append(line)
     return lines
@@ -141,10 +142,6 @@ def get_lines(pdf_path,json_path_page_map):
 
     return lines
 
-def fullwidth_to_halfwidth(s):
-    s = s.replace('戶', '户')
-    # 全角转半角
-    return "".join((unicodedata.normalize("NFKC", char) if unicodedata.east_asian_width(char) in ["F", "W"] else char) for char in s)
 # endregion
 
 # region process debug dump
@@ -691,7 +688,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202603181820627025"
+    code = "AN202603311820928201"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
