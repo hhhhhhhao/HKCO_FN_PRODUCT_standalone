@@ -141,7 +141,7 @@ def evaluate_one(info_code, pdf_json_root, gt_rows, prior_rows):
     lines = _load_lines(document_dir)
     lines_grouped = get_lines_grouped(lines)
 
-    selected_inner_lines, _ = select_main_table(lines_grouped, prior_names)
+    selected_inner_lines, _, _ = select_main_table(lines_grouped, prior_names)
     selected_tables = [
         line for line in (selected_inner_lines or [])
         if line.get("is_table") and line.get("table")

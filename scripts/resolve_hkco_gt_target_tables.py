@@ -231,7 +231,7 @@ def resolve_document(info_code, pdf_json_root, current_rows, prior_rows):
     )
     targets = [item for item in scored if resolved and item["score"] == best_score]
 
-    selected_inner_lines, _related_inner_lines = select_main_table(lines_grouped, _product_names(prior_rows))
+    selected_inner_lines, _related_inner_lines, _ = select_main_table(lines_grouped, _product_names(prior_rows))
     selected = next(
         (
             line for line in selected_inner_lines or ()

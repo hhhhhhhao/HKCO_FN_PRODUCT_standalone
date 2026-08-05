@@ -398,7 +398,7 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                 title_find_page = 0
                 report_path = ""
                 reason_arr = []
-                debug_meta = {"selected_count": 0, "source_pages": []}
+                debug_meta = {"selected_count": 0, "source_pages": [], "from_full_history": False}
                 pdf_path, json_path_page_map = get_all_paths(pdf_path, configs)
 
                 _dbg_reset(info_code, configs)
@@ -421,9 +421,10 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg(f"groups={len(lines_grouped)}")
 
                     # 2. 遍历章节，只选择一张主表。
-                    main_inner_lines, related_inner_lines = select_main_table(lines_grouped, context["prior_product_names"])
+                    main_inner_lines, related_inner_lines, from_full_history = select_main_table(lines_grouped, context["prior_product_names"])
                     _dbg_section("main_table_selection")
-                    _dbg(f"related_inner_lines={len(related_inner_lines)}")
+                    _dbg(f"related_inner_lines={len(related_inner_lines)} from_full_history={from_full_history}")
+                    debug_meta["from_full_history"] = from_full_history
 
                     # 分类：表格名称 + 表格特征。
                     main_inner_lines = classify_main_inner(main_inner_lines, context["prior_product_names"])
@@ -488,9 +489,17 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                                 selected_table = table_id
                             if table_id in metric_debug.get("source_tables", []) and table.get("page_number") not in source_pages:
                                 source_pages.append(table.get("page_number"))
+                    # 合计验证结果：product_in_columns 提取时校验非合计行之和是否等于合计
+                    total_validated = True
+                    for line in (main_inner_lines or ()):
+                        if line.get("is_table") and "total_validated" in line:
+                            total_validated = line["total_validated"]
+                            break
                     debug_meta = {
                         "selected_count": len(target_items) + len(metric_debug.get("source_tables", [])),
                         "source_pages": source_pages,
+                        "from_full_history": from_full_history,
+                        "total_validated": total_validated,
                         "selected_table": selected_table,
                         "classification": main_classification,
                         "classifier": table_classifications,
@@ -712,7 +721,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202602131819921438"
+    code = "AN202502211643369388"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

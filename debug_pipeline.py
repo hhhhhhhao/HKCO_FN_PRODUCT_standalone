@@ -42,7 +42,7 @@ def main():
     prior = json.loads(prior_path.read_text(encoding="utf-8")).get(args.info_code, [])
     sections = split_into_sections(lines)
     context = _prior_context(prior, get_document_period_text(lines))
-    main_table, selection = select_main_table(sections, context["prior_product_names"])
+    main_table, selection, _ = select_main_table(sections, context["prior_product_names"])
     classify_main_inner(main_table, context["prior_product_names"])
     extraction = extract_main_table(main_table, context)
     metric_facts, metric_debug = enrich_metrics(

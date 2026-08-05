@@ -62,7 +62,11 @@ def _has_numbers(tables):
 
 
 def select_main_table(lines_grouped, prior_names=()):
-    """按章节顺序选择唯一主章节，并返回基础过滤后的相关章节。"""
+    """按章节顺序选择唯一主章节，并返回基础过滤后的相关章节。
+
+    返回 (selected_inner_lines, related_inner_lines, from_full_history)
+    - from_full_history: 选表来自 full_history（全部上期产品名命中），选表高度可信。
+    """
     # 上期产品名直接去重。
     prior_names = list(dict.fromkeys(prior_names))
     # 合计项不参与历史产品命中。
@@ -75,6 +79,10 @@ def select_main_table(lines_grouped, prior_names=()):
 
     # 相关章节整体保留，供后续读取表格、单位和币种。
     related_inner_lines = []
+
+    def _in_full_history(inner):
+        """选中的 inner_lines 是否来自 full_history 或 full_history_arr（对象同一性检查）。"""
+        return any(inner is fh for fh in full_history) or any(inner is fh for fh in full_history_arr)
 
     # 每个 inner_lines 只解析一次；标题、正文、页码和物理表始终属于同一组。
     for inner_lines in lines_grouped:
@@ -116,15 +124,15 @@ def select_main_table(lines_grouped, prior_names=()):
             full_history_arr.append(inner_lines)
 
     if not related_inner_lines:
-        return None, []
+        return None, [], False
 
     # 只有一个全量历史命中章节时，直接选择。
     if len(full_history) == 1:
-        return full_history[0], related_inner_lines
+        return full_history[0], related_inner_lines, True
 
     # 只有一个全量历史命中章节时，直接选择。(table命中版)
     if len(full_history_arr) == 1:
-        return full_history_arr[0], related_inner_lines
+        return full_history_arr[0], related_inner_lines, True
 
     # 有全量历史命中章节时只保留它们，否则降级到历史产品命中数最高的章节。
     candidate_tables = []
@@ -147,14 +155,14 @@ def select_main_table(lines_grouped, prior_names=()):
                 and any(keyword in inner_lines_text for keyword in COST_KEYWORDS)
                 and any(keyword in inner_lines_text for keyword in GROSS_PROFIT_KEYWORDS)
             ):
-                return inner_lines, related_inner_lines
+                return inner_lines, related_inner_lines, True
 
     # 仍然并列时，按正则优先级循环，找到第一个命中章节直接返回。
     if len(candidate_tables) > 1:
         for patterns in _TABLE_CLASS_PATTERNS:
             for inner_lines in candidate_tables:
                 if match_patterns(inner_lines[0]["text"], patterns):
-                    return inner_lines, related_inner_lines
+                    return inner_lines, related_inner_lines, _in_full_history(inner_lines)
 
     # 完全同分时不看页码或物理表 ID，保留最先出现的章节。
-    return candidate_tables[0], related_inner_lines
+    return candidate_tables[0], related_inner_lines, _in_full_history(candidate_tables[0])

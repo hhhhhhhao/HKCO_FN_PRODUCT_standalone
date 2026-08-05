@@ -66,7 +66,7 @@ def analyze_one(info_code, pdf_json_root, gt_rows, prior_rows):
     ]
     lines = ev._load_lines(document_dir)
     lines_grouped = get_lines_grouped(lines)
-    main_inner_lines, _ = select_main_table(lines_grouped, prior_names)
+    main_inner_lines, _, _ = select_main_table(lines_grouped, prior_names)
     classify_main_inner(main_inner_lines, prior_names)
     hit, missing = _main_inner_hit(main_inner_lines, gt_amounts)
 

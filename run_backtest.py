@@ -827,9 +827,42 @@ def compare_one(
         field_ok = Counter({f: db_n for f in value_fields})
         field_bad = Counter()
 
-    # 豁免的历史期 / 金额子集多抓不参与 precision / comprehensive_hit 分母
+    # ---------- 整篇豁免：选表来自 full_history（全部上期产品名命中）----------
+    # 抽取为空（0 行）时不豁免 — 选表对了但没抽出来，仍然是真实问题。
+    forgiven_full_history = 0
+    if (
+        (missing > 0 or extra > 0 or value_wrong > 0)
+        and pipe.get("from_full_history")
+        and local_n > 0
+    ):
+        forgiven_full_history = 1
+        # 同 forgiven_gt_amount_subset：整篇重置为完全匹配
+        for item in missing_items:
+            fi = dict(item)
+            fi["root_cause"] = "forgiven_full_history"
+            forgiven_subset_items.append(fi)
+        for item in extra_items:
+            fi = dict(item)
+            fi["root_cause"] = "forgiven_full_history"
+            forgiven_subset_items.append(fi)
+        for item in wrong_items:
+            fi = dict(item)
+            fi["root_cause"] = "forgiven_full_history"
+            forgiven_subset_items.append(fi)
+        forgiven_extra_items.extend(forgiven_subset_items)
+        matched = db_n
+        missing = 0
+        extra = 0
+        value_wrong = 0
+        missing_items = []
+        extra_items = []
+        wrong_items = []
+        field_ok = Counter({f: db_n for f in value_fields})
+        field_bad = Counter()
+
+    # 豁免的历史期 / 金额子集 / full_history 多抓不参与 precision / comprehensive_hit 分母
     scored_local_n = max(local_n - forgiven_extra, 0)
-    if forgiven_gt_amount_subset:
+    if forgiven_gt_amount_subset or forgiven_full_history:
         scored_local_n = db_n
     if missing == 0 and extra == 0 and value_wrong == 0:
         status = "完全匹配"
@@ -869,7 +902,7 @@ def compare_one(
 
     # 文档质量分类：区分自然匹配、豁免后匹配、有真实问题
     if status == "完全匹配":
-        if forgiven_extra == 0 and forgiven_gt_amount_subset == 0:
+        if forgiven_extra == 0 and forgiven_gt_amount_subset == 0 and forgiven_full_history == 0:
             doc_category = "完全匹配"
         else:
             doc_category = "豁免后匹配"
@@ -891,6 +924,7 @@ def compare_one(
             "value_diff": value_wrong,
             "forgiven_extra_periods": forgiven_extra,
             "forgiven_gt_amount_subset": forgiven_gt_amount_subset,
+            "forgiven_full_history": forgiven_full_history,
             "match_no_value_diff": matched,
             "recall": matched / db_n if db_n else 0.0,
             "precision": matched / scored_local_n if scored_local_n else 0.0,
@@ -920,6 +954,9 @@ def aggregate(docs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     forgiven_extra = sum(int((d["stats"] or {}).get("forgiven_extra_periods") or 0) for d in docs)
     forgiven_subset_docs = sum(
         1 for d in docs if int((d.get("stats") or {}).get("forgiven_gt_amount_subset") or 0) > 0
+    )
+    forgiven_full_history_docs = sum(
+        1 for d in docs if int((d.get("stats") or {}).get("forgiven_full_history") or 0) > 0
     )
     match_ok = sum(d["stats"]["match_no_value_diff"] for d in docs)
     roots: Counter = Counter()
@@ -990,8 +1027,10 @@ def aggregate(docs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
             for d in docs
             if int((d.get("stats") or {}).get("forgiven_extra_periods") or 0) > 0
             or int((d.get("stats") or {}).get("forgiven_gt_amount_subset") or 0) > 0
+            or int((d.get("stats") or {}).get("forgiven_full_history") or 0) > 0
         ),
         "forgiven_gt_amount_subset_docs": forgiven_subset_docs,
+        "forgiven_full_history_docs": forgiven_full_history_docs,
         "db_count": db,
         "local_count": local,
         "effective_local": effective_local,
@@ -1026,6 +1065,7 @@ ROOT_CAUSE_DESC = {
     "value_wrong": "抓错：产品行定位对了，字段值不一致",
     "extra": "多抓：预测有，GT 无",
     "forgiven_gt_amount_subset": "豁免：单表抽取且 GT 金额均被覆盖",
+    "forgiven_full_history": "豁免：选表来自 full_history（全部上期产品名命中）",
 }
 
 
@@ -1204,6 +1244,58 @@ def _render_problem_docs(
     return summary + "".join(cards)
 
 
+def _render_fh_exempted_docs(
+    docs: Sequence[Mapping[str, Any]],
+    schema: Mapping[str, Any],
+    url_of,
+) -> str:
+    """列出 Full History 豁免的文档及其抽取数据。"""
+    fh_docs = [
+        d for d in docs
+        if int((d.get("stats") or {}).get("forgiven_full_history") or 0) > 0
+    ]
+    if not fh_docs:
+        return ""
+
+    fields = resolve_fields(schema)
+    preferred = [
+        "PRODUCTNAME", "STARTDATE", "REPORTDATE",
+        "MBREVENUE", "MBCOST", "GROSS_PROFIT", "CURRENCY", "UNIT",
+    ]
+    show_fields = [f for f in preferred if f in fields]
+    show_fields.extend(f for f in fields if f not in show_fields)
+
+    cards: List[str] = []
+    for d in fh_docs:
+        ic = str(d.get("infocode") or "")
+        u = url_of(d)
+        p = d.get("pipeline") or {}
+        pages = _source_pages_label(p)
+        extract_items = list(d.get("extract_items") or [])
+        cards.append(
+            f"<div class='card doc-card' id='fh-{_esc(ic)}'>"
+            f"<div class='doc-head'>"
+            f"<h3 class='mono'>{_esc(ic)}</h3>"
+            f"<div class='doc-actions'>{_link(ic, u, '打开PDF')}</div>"
+            f"</div>"
+            f"<div class='doc-meta'>"
+            f"<span>抓取页：<strong>{_esc(pages)}</strong></span>"
+            f"<span>抽取行：<strong>{len(extract_items)}</strong></span>"
+            f"<span class='badge ok'>全量上期产品命中 → 自动豁免</span>"
+            f"</div>"
+            f"<div class='side-by-side'>"
+            f"{_render_items_table(list(d.get('gt_items') or []), show_fields, 'GT')}"
+            f"{_render_items_table(extract_items, show_fields, '抽取')}"
+            f"</div></div>"
+        )
+
+    summary = (
+        f"<p class='muted'>选表来自 full_history（全部上期产品名命中），"
+        f"整体算完美匹配，共 <strong>{len(fh_docs)}</strong> 篇。</p>"
+    )
+    return summary + "".join(cards)
+
+
 def render_html(meta: Mapping[str, Any], agg: Mapping[str, Any], docs: Sequence[Mapping[str, Any]], schema: Mapping[str, Any]) -> str:
     title = schema.get("title") or "PDF Baseline 跑批报告"
 
@@ -1237,9 +1329,11 @@ def render_html(meta: Mapping[str, Any], agg: Mapping[str, Any], docs: Sequence[
     ] or ["<tr><td colspan='3'>无</td></tr>"]
 
     problem_n = int(agg.get("problem_docs") or 0)
+    fh_n = int(agg.get("forgiven_full_history_docs") or 0)
     task_name = str(meta.get("task") or "").strip()
     run_dir = str(meta.get("run_dir") or "").strip()
     compare_body = _render_problem_docs(docs, schema, url_of)
+    fh_body = _render_fh_exempted_docs(docs, schema, url_of)
 
     # 问题子类统计行（按首要问题分类）
     problem_sub_lines = (
@@ -1349,6 +1443,7 @@ async function acceptGt(infocode, btn) {{
   <div class="kpi"><div>定位率 Biz Hit</div><div class="value">{_pct(agg.get('biz_hit',0))}</div></div>
   <div class="kpi"><div>Recall (GT覆盖率)</div><div class="value">{_pct(agg.get('recall',0))}</div></div>
   <div class="kpi"><div>Precision (修正后)</div><div class="value">{_pct(agg.get('precision',0))}</div></div>
+  <div class="kpi"><div>Full History 豁免</div><div class="value" style="color:#0891b2">{int(agg.get('forgiven_full_history_docs',0))}</div></div>
   <div class="kpi"><div>豁免历史期行数</div><div class="value" style="font-size:1.2rem">{int(agg.get('forgiven_extra_periods',0))}</div></div>
   <div class="kpi"><div>少抓 / 多抓 / 抓错</div><div class="value" style="font-size:1.2rem">{int(agg.get('missing',0))} / {int(agg.get('extra',0))} / {int(agg.get('value_diff',0))}</div></div>
 </div>
@@ -1356,7 +1451,7 @@ async function acceptGt(infocode, btn) {{
     <p style="margin:0 0 8px"><strong>说明：</strong></p>
     <ul style="margin:0;padding-left:20px;color:#4b5563;font-size:.86rem">
       <li><strong>自然完全匹配</strong>：GT 与抽取完全一致，无豁免，无需关注</li>
-      <li><strong>豁免后匹配</strong>：仅因 GT 少标历史报告期而产生的差异被豁免，无需关注</li>
+      <li><strong>豁免后匹配</strong>：因 GT 少标历史报告期 / 单表金额全覆盖 / full_history 选表而产生的差异被豁免，无需关注</li>
       <li><strong>需修复</strong>：豁免后仍存在少抓/多抓/抓错，需要排查抽取逻辑</li>
       <li><strong>定位率 Biz Hit</strong> = (完全匹配 + 抓错) / GT总行数 → 产品+期间定位的成功率（值不对但行定位对了也算）</li>
       <li><strong>Precision (修正后)</strong> = 完全匹配行 / (抽取总行 − 豁免历史期行) → 排除已知GT标注不足后的精确率</li>
@@ -1366,6 +1461,7 @@ async function acceptGt(infocode, btn) {{
 {section("抽取管道阶段（按公告）", f"<div class='card'><table><tr><th>阶段</th><th>公告数</th><th>说明</th></tr>{''.join(pipe_rows)}</table><p class='muted'>定位→解析→成表(select)→格式化；零输出时 missing 根因会继承该阶段。</p></div>", open_=False)}
 {section("差异根因（按 GT 行）", f"<div class='card'><table><tr><th>根因</th><th>行数</th><th>说明</th></tr>{''.join(root_rows)}</table></div>", open_=False)}
 {section(f"需修复文档分类（按首要问题 · {problem_n} 篇）", f"<div class='card'><table><tr><th>首要问题</th><th>文档数</th><th>建议排查方向</th></tr>{problem_sub_lines}</table></div>", open_=True, section_id="problem-categories")}
+{section(f"Full History 豁免（全部上期产品命中 · {fh_n} 篇）", fh_body, open_=True, section_id="fh-exempted")}
 {section(f"逐公告对照（GT / 抽取并列 · {problem_n} 篇）", compare_body, open_=True, section_id="compare-section")}
 </body></html>"""
 
