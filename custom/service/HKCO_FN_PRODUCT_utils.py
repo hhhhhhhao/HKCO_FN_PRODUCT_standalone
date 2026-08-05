@@ -14,8 +14,9 @@ def fullwidth_to_halfwidth(s):
 
 
 def last_name_matches(name, text):
-    left_key = str(name or "").strip().lower()
+    left_key = str(name or "").strip().lower().replace("之", "")
     orig_left_key = left_key
+    text = text.replace("之", "")
     if '-' in left_key:
         left_key = left_key.split('-')[-1]
     if ':' in left_key:
@@ -63,5 +64,4 @@ def historical_product_last_name_matches(prior_names, tables):
             matched_count_arr += 1
 
     return matched_count, matched_count_arr
-
 

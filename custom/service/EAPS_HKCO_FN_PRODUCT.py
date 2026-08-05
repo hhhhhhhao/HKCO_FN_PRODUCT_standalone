@@ -436,22 +436,33 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg(json.dumps(table_classifications, ensure_ascii=False, default=str))
 
                     # 3. 分析主表结构并抽取产品、收入。
-                    main_result = extract_main_table(main_inner_lines, context)
+                    main_facts = extract_main_table(main_inner_lines, context)
+                    main_classification = next(
+                        (
+                            line.get("classification")
+                            for line in main_inner_lines
+                            if line.get("classification")
+                        ),
+                        "unsupported",
+                    )
                     _dbg_section("main_table_extraction")
-                    _dbg(json.dumps(main_result["debug"], ensure_ascii=False))
+                    _dbg(json.dumps({
+                        "classification": main_classification,
+                        "fact_count": len(main_facts),
+                    }, ensure_ascii=False))
 
                     # 4. 必要时从其他物理表补成本、毛利。
                     metric_facts, metric_debug = enrich_metrics(
                         related_inner_lines,
                         main_inner_lines,
-                        main_result["facts"],
+                        main_facts,
                         context["required_metrics"],
                     )
                     _dbg_section("metric_enrichment")
                     _dbg(json.dumps(metric_debug, ensure_ascii=False))
 
                     # 5. 格式化最终入库字段。
-                    result_data = format_records(main_result["facts"], metric_facts)
+                    result_data = format_records(main_facts, metric_facts)
                     if not result_data:
                         reason_arr.append("主表抽取为空")
                     target_items = [main_inner_lines] if main_inner_lines else []
@@ -481,10 +492,10 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                         "selected_count": len(target_items) + len(metric_debug.get("source_tables", [])),
                         "source_pages": source_pages,
                         "selected_table": selected_table,
-                        "classification": main_result["classification"],
+                        "classification": main_classification,
                         "classifier": table_classifications,
                         "selection_debug": {"related_inner_lines_count": len(related_inner_lines)},
-                        "extraction_debug": main_result["debug"],
+                        "extraction_debug": {"fact_count": len(main_facts)},
                         "metric_debug": metric_debug,
                     }
 
@@ -701,7 +712,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202501201642376981"
+    code = "AN202502211643369388"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

@@ -8,19 +8,40 @@ classify_main_inner(main_inner_lines)：
 - 格式：title分类/table分类
 - 返回原 main_inner_lines
 
-title 分类：
-- product_service：产品/服务拆分
-- business：分部/业务拆分
-- geography：按地区
-- sales_channel：按销售渠道
-- customer：按客户
-- recognition_time：按收入确认时间
-- unknown：看不出名称
-
-table 分类：
-- product_in_rows：产品在行
-- product_in_columns：产品在列
-- unsupported：形状不支持
+分类目标只有三类：
+- profit_loss：标题为损益表/综合损益表
+  例：AN202602241819995282，第 8 页「簡明綜合損益表」
+  例：AN202603051820302534，第 38 页「合併損益表」
+  例：AN202603201820669174，第 2 页「綜合損益表」
+  例：AN202603271820801411，第 139 页「綜合損益表」
+- product_in_rows：产品名横向在表头行
+  例：AN202502211643369388，第 8 页（商品業務/主要投資及金融服務在表头）
+  例：AN202501201642376981，第 8 页（環保產品/自來水廠在表头）
+  例：AN202602091819840147，第 10 页（日本的四季康樂活動業務等产品在表头）
+  例：AN202602131819921438，第 9 页（物流服務/物業投資等产品在表头）
+  例：AN202602271820105743，第 16 页（工程解決方案-運動控制/可再生能源等在表头）
+  例：AN202503281648794424，第 12 页（酒店營運及配套業務/物業投資等产品在表头）
+  例：AN202603201820657945，第 28 页（新秀麗/TUMI/American Tourister 在表头）
+- product_in_columns：产品名纵向在第一列
+  例：AN202502261643530572，第 12 页（全科醫療服務/專科醫療服務/牙科服務在第一列）
+  例：AN202502271643575865，第 12 页（智慧城市解決方案/可再生能源等在第一列）
+  例：AN202503251647430529，第 8 页（提供氣膜建造服務等在第一列）
+  例：AN202602131819926770，第 6 页（娛樂場/客房/購物中心等在第一列）
+  例：AN202503141644357580，第 45 页（銷售原鋁及合金/銷售氧化鋁等在第一列）
+  例：AN202602261820070247，第 6 页（股票、期權、基金及期貨經紀等在第一列）
+  例：AN202502281643617359，第 6 页（銀行存款之利息收入等在第一列）
+  例：AN202603051820293798，第 13 页（酒店/投資物業/發展物業等在第一列）
+  例：AN202602271820101294，第 11 页（銷售傢俱產品/資訊科技管理服務等在第一列）
+  例：AN202503281648796250，第 7 页（融資擔保收益/顧問服務費等在第一列）
+  例：AN202603271820814256，第 6 页（融資擔保收益/顧問及維護服務費等在第一列）
+  例：AN202603011820160854，第 8 页（自來水供應及相關服務收入等在第一列）
+  例：AN202602271820100616，第 19 页（物業銷售/物業租賃等在第一列）
+  例：AN202602271820107497，第 6 页（種植業務/水果分銷業務等在第一列）
+  例：AN202503281648703371，第 7 页（銷售PHC管樁/銷售商品混凝土等在第一列）
+  例：AN202603101820443458，第 14 页（投資物業/發展物業/酒店等在第一列）
+  例：AN202603121820513984，第 18 页（銷售發展物業/管理及服務收入等在第一列）
+  例：AN202603031820229304，第 53 页（銅/鋅/鉛/金/銀等在第一列）
+  例：AN202504301664954261，第 5 页（交易費及交易系統使用費等在第一列）
 """
 import re
 
@@ -125,17 +146,6 @@ def classify_table(rows, prior_names):
 title_classification_patterns = [
     (r"損益表|损益表|收益表|綜合損益|综合损益|全面收益|全面收入|虧損表|亏损表|"
      r"income statement|profit or loss|profit and loss", "profit_loss"),
-    (r"按(?:主要)?(?:產品|产品|商品|貨品|货品|服務|服务|類別|类别|類型|类型)", "product_service"),
-    (r"(?:收入|收益|營業收入|營業額|銷售收入|銷售額|revenue|turnover|sales)"
-     r".{0,10}(?:分析|分類|分类|分拆|細分|细分|明細|明细|分解|劃分|划分|構成|构成|情況|情况)", "product_service"),
-    (r"(?:分拆|細分|细分|分類|分类|明細|明细).{0,10}(?:收入|收益|營業收入|營業額)", "product_service"),
-    (r"^[\d(a-i).、\s]*(?:收入|收益|營業收入|營業額|銷售收入|銷售額)$", "product_service"),
-    (r"產品|产品|商品|貨品|货品|服務|服务|product|service", "product_service"),
-    (r"分部|業務|业务|板塊|板块|segment|business", "business"),
-    (r"銷售渠道|销售渠道|渠道|批發|批发|零售|channel", "sales_channel"),
-    (r"收入確認時間|收入确认时间|收益確認時間|收益确认时间|時間點|时间点|隨時間|随时间|over time", "recognition_time"),
-    (r"客戶|客户|customer", "customer"),
-    (r"地區|地区|地域|地理|國家|国家|geograph|region|country", "geography"),
 ]
 
 
@@ -154,9 +164,8 @@ def classify_main_inner(main_inner_lines, prior_names):
         if not inner_line.get("is_table") or not inner_line.get("table"):
             continue
         table_classification = classify_table(inner_line["table"], prior_names)
-        # inner_line["classification"] = f"{title_classification}/{table_classification}"
 
-        if table_classification == 'profit_loss':
+        if title_classification == "profit_loss":
             inner_line["classification"] = 'profit_loss'
             continue
 
