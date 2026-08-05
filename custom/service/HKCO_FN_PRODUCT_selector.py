@@ -8,66 +8,11 @@ lines_grouped 中的每个 inner_lines 是一个完整章节单元，标题、�
 正式选表不使用 GT、当前期产品、GT 金额、页码排序或物理表 ID。
 """
 import re
-import unicodedata
 from custom.service.HKCO_FN_PRODUCT_document import match_patterns
-
-
-def fullwidth_to_halfwidth(s):
-    s = s.replace('戶', '户')
-    # 全角转半角
-    return "".join((unicodedata.normalize("NFKC", char) if unicodedata.east_asian_width(char) in ["F", "W"] else char) for char in s)
-    
-def historical_product_name_matches(prior_names, tables):
-    """返回 prior_names 中有多少个名字能命中 tables 表格文本。"""
-    table_rows = []
-    for item in (tables or []):
-        table = item.get("table") if isinstance(item, dict) and "table" in item else item
-        if isinstance(table, (list, tuple)):
-            table_rows.extend(table)
-    tables_flatten = [
-        str(cell).replace(" ", "").replace("\\n", "").replace("\n", "")
-        for row in table_rows
-        for cell in row
-    ]
-    table_text = str(tables_flatten).strip().lower()
-
-    # text匹配
-    matched_count = 0
-    for left in prior_names:
-        left_key = left.strip().lower()
-        orig_left_key = left_key
-        if '-' in left_key:
-            left_key = left_key.split('-')[-1]
-        if ':' in left_key:
-            left_key = left_key.split(':')[0]
-        if not left_key or not table_text:
-            continue
-        if left_key in table_text:
-            matched_count += 1
-            continue
-        # 长产品名：所有字符都出现在 table_text 中即算命中（不管顺序）
-        if len(orig_left_key) > 10 and '-' in orig_left_key:
-            if all(ch in table_text for ch in orig_left_key):
-                matched_count += 1
-
-    # arr匹配
-    matched_count_arr = 0
-    for left in prior_names:
-        left_key = left.strip().lower()
-        orig_left_key = left_key
-        if '-' in left_key:
-            left_key = left_key.split('-')[-1]
-        if ':' in left_key:
-            left_key = left_key.split(':')[0]
-
-        if not left_key or not table_text:
-            continue
-        if left_key in tables_flatten:
-            matched_count_arr += 1
-            continue
-
-
-    return matched_count,matched_count_arr
+from custom.service.HKCO_FN_PRODUCT_utils import (
+    fullwidth_to_halfwidth,
+    historical_product_last_name_matches,
+)
 
 
 NUMBER = re.compile(r"^\s*\(?-?\d[\d,]*(?:\.\d+)?\)?\s*$")
@@ -162,7 +107,7 @@ def select_main_table(lines_grouped, prior_names=()):
 
         # 历史产品名匹配
         # 全部上期产品命中才进入 full_history
-        matched_count, matched_count_arr = historical_product_name_matches(prior_names, tables)
+        matched_count, matched_count_arr = historical_product_last_name_matches(prior_names, tables)
         history_groups[matched_count].append(inner_lines)
         if prior_names and matched_count == len(prior_names):
             full_history.append(inner_lines)

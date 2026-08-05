@@ -29,10 +29,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
-from custom.service.HKCO_FN_PRODUCT_selector import (
-    historical_product_name_matches,
-    select_main_table,
-)
+from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
+from custom.service.HKCO_FN_PRODUCT_utils import historical_product_last_name_matches
 from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
 
 
@@ -162,11 +160,11 @@ def score_table(table, facts):
     matched_facts = []
     for fact in facts:
         name_positions = []
-        if historical_product_name_matches([fact["name"]], [table]):
+        if historical_product_last_name_matches([fact["name"]], [table]):
             name_positions = [
                 (row, column)
                 for row, column, value in text_cells
-                if historical_product_name_matches([fact["name"]], [{"table": [[value]]}])
+                if historical_product_last_name_matches([fact["name"]], [{"table": [[value]]}])
             ]
         amount_positions = [
             (row, column)

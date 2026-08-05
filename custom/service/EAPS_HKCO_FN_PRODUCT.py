@@ -24,11 +24,13 @@ from custom.utils.upload_derived_data_util import upload_derived_data
 from loguru import logger
 from shared.conf.service_conf import config
 from shared.enums.error_code_enum import ErrorCodeType
+from custom.service.HKCO_FN_PRODUCT_classifier import classify_main_inner
 from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
-from custom.service.HKCO_FN_PRODUCT_selector import fullwidth_to_halfwidth, select_main_table
+from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
+from custom.service.HKCO_FN_PRODUCT_utils import fullwidth_to_halfwidth
+from custom.service.EAPS_HKCO_FN_PRODUCT_format_data import format_records
 from custom.service.HKCO_FN_PRODUCT_extraction import extract_main_table
 from custom.service.HKCO_FN_PRODUCT_metric_enrichment import enrich_metrics
-from custom.service.EAPS_HKCO_FN_PRODUCT_format_data import format_records
 
 # region mineru ocr
 def parse_mineru_result_to_lines(pages_data,page_num):
@@ -423,6 +425,16 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg_section("main_table_selection")
                     _dbg(f"related_inner_lines={len(related_inner_lines)}")
 
+                    # 分类：表格名称 + 表格特征。
+                    main_inner_lines = classify_main_inner(main_inner_lines, context["prior_product_names"])
+                    table_classifications = [
+                        line.get("classification")
+                        for line in main_inner_lines
+                        if line.get("is_table") and line.get("table")
+                    ]
+                    _dbg_section("main_table_classification")
+                    _dbg(json.dumps(table_classifications, ensure_ascii=False, default=str))
+
                     # 3. 分析主表结构并抽取产品、收入。
                     main_result = extract_main_table(main_inner_lines, context)
                     _dbg_section("main_table_extraction")
@@ -470,6 +482,7 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                         "source_pages": source_pages,
                         "selected_table": selected_table,
                         "classification": main_result["classification"],
+                        "classifier": table_classifications,
                         "selection_debug": {"related_inner_lines_count": len(related_inner_lines)},
                         "extraction_debug": main_result["debug"],
                         "metric_debug": metric_debug,
@@ -688,7 +701,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202603311820928201"
+    code = "AN202501201642376981"
     pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
