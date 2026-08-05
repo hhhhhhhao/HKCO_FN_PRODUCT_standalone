@@ -28,7 +28,8 @@ def extract_main_table(main_inner_lines, context):
         if not inner_lines.get("is_table") or not inner_lines.get("table"):
             continue
         extractor = EXTRACTORS.get(inner_lines.get("classification"))
-        if extractor is not None:
-            inner_lines.setdefault("period_text", measurement)
-            return extractor(inner_lines, context)
+        if extractor is None:
+            continue
+        inner_lines.setdefault("period_text", measurement)
+        return extractor(inner_lines, context)
     return []

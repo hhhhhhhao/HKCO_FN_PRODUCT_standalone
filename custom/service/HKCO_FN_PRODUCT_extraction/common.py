@@ -8,51 +8,171 @@ import re
 from typing import Any, Dict, List, Optional
 
 
-NUMBER = re.compile(r"^\s*\(?-?[\d,]+(?:\.\d+)?\)?\s*$")
-YEAR = re.compile(r"20\d{2}|二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2}", re.I)
-REVENUE = re.compile(r"收入|收益|營業額|营业额|銷售額|销售额|revenue|turnover|sales", re.I)
-REVENUE_LABEL = re.compile(r"^(?:收入|收益|營業額|營業收入|銷售收入|銷售額|revenue|turnover|sales)$", re.I)
 COST = re.compile(r"成本|cost", re.I)
 GROSS_PROFIT = re.compile(r"毛利|毛損|毛损|gross profit|gross loss", re.I)
-TOTAL = re.compile(r"^(?:合計|合计|小計|小计|總計|总计|總額|总额|總收入|总收入|subtotal|total)$", re.I)
-CURRENCY = re.compile(r"人民幣|人民币|港幣|港币|港元|美元|歐元|欧元|日圓|日元")
-UNIT = re.compile(r"百萬|百万|萬|万|千|元|million|thousand")
+HEADER_SCAN_ROWS = 5
 CN = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,
       "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 
-
-def _number(value: Any) -> Optional[float]:
-    text = str(value or "").strip()
-    if not NUMBER.fullmatch(text):
-        return None
-    negative = text.startswith("(") and text.endswith(")")
-    amount = float(text.strip("() ").replace(",", ""))
-    return -amount if negative else amount
-
-
-def _year(value: Any) -> Optional[int]:
-    match = YEAR.search(str(value or ""))
-    if not match:
-        return None
-    token = match.group(0)
-    if token.isdigit():
-        return int(token)
-    return 2000 + int("".join(str(CN.get(ch, 0)) for ch in token[2:]))
+PATTERNS = {
+    "number": r"^(?P<number>\(?-?[\d,]+(?:\.\d+)?\)?)$",
+    "year": r"(?P<year>20\d{2}|二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2})",
+    "revenue": r"(?P<revenue>收入|收益|營業額|营业额|銷售額|销售额|revenue|turnover|sales)",
+    "revenue_label": r"^(?P<label>收入|收益|營業額|營業收入|銷售收入|銷售額|revenue|turnover|sales)$",
+    "pl_line": r"(?P<pl>成本|毛利|溢利|虧損|開支|費用|profit|loss)",
+    "metric": r"^(?P<metric>分部業績|分部收益|毛利|成本|溢利|虧損|開支|費用|折舊|利息收入|profit|loss|expense|subtotal|total)$",
+    "metric_contains": r"(?P<metric>分部業績|分部收益|毛利|成本|溢利|虧損|開支|費用|折舊|利息收入|EBITDA|EBIT|非流動資產|流動資產|股東應佔|profit|loss|expense|subtotal|total)",
+    "external": r"(?P<external>外部|對外|对外|external)",
+    "header": r"(?P<header>20\d{2}|二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2}|千元|千港元|百萬|百万|期間|期间|附註|附注|年度|止年度|止六個月|止六个月)",
+    "recognition": r"(?P<recognition>時間點|時點|时间点|隨時間|随时间|一段時間|一段时间|某一時點|某一时点|某個時點|某个时点)",
+    "note": r"^(?P<note>附註|附注|註|注|note)",
+    "cjk": r"(?P<cjk>[\u4e00-\u9fff])",
+    "final_total": r"^(?P<final>合計|合计|總計|总计|總額|总额|總收入|总收入|總收益|总收益|淨收益總額|净收益总额|收益總額|收入總額|銷售淨額|销售净额|總營業額|总营业额|集團總額|集团总额|綜合|综合|本集團|本集团|集團|集团|合併|合并|total)$",
+    "subtotal": r"^(?P<sub>可報告分部總計|可報告分部总计|可呈報分部總計|可呈報分部总计|應呈報分類總計|應呈報分類总计|持續經營分類總計|持续经营分类总计|報告分部總計|报告分部总计|分部總計|分部总计|分部總額|分部总额|擔保費收益總額|担保费收益总额|擔保費收益淨額|担保费收益净额|收益總額|收益淨額|來自客户合約的收益|來自客戶合約的收益|來自客户合約的收入|來自客戶合約的收入|來自客户合約之總收入|來自客戶合約之總收入|按客户類型劃分的收益總額|按客戶類型劃分的收益總額|第三方|關聯方|可呈報分部|可報告分部|小計|小计|subtotal|sub-total)$",
+}
 
 
-def _cn_number(token: str) -> int:
-    token = token.strip()
-    if token.isdigit():
-        return int(token)
-    if "十" in token:
-        left, right = token.split("十", 1)
-        tens = CN.get(left, 1) if left else 1
-        units = CN.get(right, 0) if right else 0
-        return tens * 10 + units
-    return CN.get(token, 0)
+def match_named_patterns(text, patterns):
+    for pattern in patterns:
+        match = re.search(pattern, str(text or ""), re.I)
+        if match and match.groupdict():
+            return {key: value for key, value in match.groupdict().items() if value is not None}
+    return None
 
 
-def _add_months(value: datetime.date, months: int) -> datetime.date:
+def match_patterns(s, patterns):
+    for pattern, group in patterns:
+        match = re.search(pattern, str(s or ""), re.I)
+        if match and match.group(group):
+            return match.group(group)
+    return None
+
+
+def _matches(name, text):
+    return match_patterns(text, [(PATTERNS[name], 1)]) is not None
+
+
+def get_currency(arr):
+    units = ['人民币','人民幣','港元','港幣','美元','欧元','歐元','日元','日圓','新加坡元','加拿大元','马来西亚林吉特','馬來西亞林吉特','澳门元','澳門元']
+    aliases = {'人民幣': '人民币', '港幣': '港元', '港币': '港元', '歐元': '欧元', '日圓': '日元', '馬來西亞林吉特': '马来西亚林吉特', '澳門元': '澳门元'}
+    for a in arr:
+        for unit in units:
+            if unit in a:
+                return aliases.get(unit, unit)
+    return ''
+
+
+def get_unit(arr):
+    units = ['千港元','千元','千美元','千人民币','百萬','百万','亿元','億元','万元','萬元','萬','万','元','million','thousand']
+    for a in arr:
+        for unit in units:
+            if unit in a:
+                return unit
+    return ''
+
+
+def get_end_date(text_line):
+    text_line = text_line.replace(" ", "").replace("\n", "").replace("\t", "")
+    patterns = [
+        r"(?P<year>\d{4})年(?P<month>\d{1,2})月",
+        r"(?P<year>\d{4})年(?P<month>\d{1,2})末",
+        r"(?P<year>\d{4})年(?P<season>第[一二三四1234]季度)",
+        r"(?P<year>\d{4})年(?P<season>[一二三四1234]季度)",
+        r"(?P<year>\d{4})年\d{1,2}\-(?P<season>\d{1,2}季度)",
+        r"(?P<year>\d{4})年(?P<previous_season>前[一二三四1234]季度)",
+        r"(?P<year>\d{4})年(?P<half_year>半年度|上半年)",
+        r"(?P<year>\d{4})(?P<annual>年度|年部分经营数据|年公司境内|年经营)",
+        r"(?P<year>\d{4})年(?P<month_range>\d{1,2}-\d{1,2})月",
+        r"(?P<year>\d{4})年(?P<annual>年度)",
+        r"(?P<year>\d{4})年(?P<annual>年末|末)",
+        r"(?P<year>\d{4})(?P<annual>年)(共同|发行)",
+    ]
+    match_res = match_named_patterns(text_line, patterns)
+    if match_res:
+        year = match_res.get("year")
+        season = match_res.get("season")
+        month = match_res.get("month")
+        half_year = match_res.get("half_year")
+        annual = match_res.get("annual")
+        previous_season = match_res.get("previous_season")
+        month_range = match_res.get("month_range")
+        last_month = match_res.get("last_month")
+
+        if season:
+            if "一季度" in season or "1季度" in season:
+                month = "03"
+                day = "31"
+            elif "二季度" in season or "2季度" in season:
+                month = "06"
+                day = "30"
+            elif "三季度" in season or "3季度" in season:
+                month = "09"
+                day = "30"
+            elif "四季度" in season or "4季度" in season:
+                month = "12"
+                day = "31"
+        elif previous_season:
+            if "四季度" in previous_season or "4季度" in previous_season:
+                month = "12"
+                day = "31"
+            elif "三季度" in previous_season or "3季度" in previous_season:
+                month = "09"
+                day = "30"
+            elif "二季度" in previous_season or "2季度" in previous_season:
+                month = "06"
+                day = "30"
+            elif "一季度" in previous_season or "1季度" in previous_season:
+                month = "03"
+                day = "31"
+        elif half_year:
+            month = "06"
+            day = "30"
+        elif annual:
+            month = "12"
+            day = "31"
+        elif month:
+            month = f"{int(month):02d}"
+            if month in ["01", "03", "05", "07", "08", "10", "12"]:
+                day = "31"
+            elif month in ["04", "06", "09", "11"]:
+                day = "30"
+            elif month == "02":
+                day = "29" if (int(year) % 4 == 0 and (int(year) % 100 != 0 or int(year) % 400 == 0)) else "28"
+        elif month_range:
+            month = month_range.split('-')[1]
+            month = f"{int(month):02d}"
+            if month in ["01", "03", "05", "07", "08", "10", "12"]:
+                day = "31"
+            elif month in ["04", "06", "09", "11"]:
+                day = "30"
+            elif month == "02":
+                day = "29" if (int(year) % 4 == 0 and (int(year) % 100 != 0 or int(year) % 400 == 0)) else "28"
+
+        return f"{year}-{month}-{day}"
+
+    return None
+
+
+def get_start_date(start_date, report_date, this_year, text=""):
+    if start_date:
+        return start_date
+    if report_date:
+        end_date = datetime.date.fromisoformat(report_date)
+        if re.search(r"六個月|六个月|6\s*個月|6\s*个月|six months", text, re.I):
+            months = 6
+        elif re.search(r"九個月|九个月|9\s*個月|9\s*个月|nine months", text, re.I):
+            months = 9
+        elif re.search(r"季度", text):
+            months = 3
+        else:
+            months = 12
+        start = _shift_months(end_date, -months) + datetime.timedelta(days=1)
+        return start.isoformat()
+    year = str(this_year).replace('年', '')
+    return f"{year}-01-01"
+
+
+def _shift_months(value, months):
     month = value.month + months
     year = value.year
     while month <= 0:
@@ -65,25 +185,26 @@ def _add_months(value: datetime.date, months: int) -> datetime.date:
     return datetime.date(year, month, day)
 
 
-def _period(year: int, context: Dict[str, Any], text: str):
-    month, day = tuple(context.get("prior_fiscal_month_day") or (12, 31))
-    m = re.search(r"截至.*?(\d{1,2})月(\d{1,2})日", text)
-    if m:
-        month, day = int(m.group(1)), int(m.group(2))
-    else:
-        m = re.search(r"截至.*?([〇零一二三四五六七八九十]{1,3})月([〇零一二三四五六七八九十]{1,3})日", text)
-        if m:
-            month, day = _cn_number(m.group(1)), _cn_number(m.group(2))
-    day = min(day, calendar.monthrange(year, month)[1])
-    end = datetime.date(year, month, day)
-    if re.search(r"六個月|六个月|6\s*個月|6\s*个月|six months", text, re.I):
-        months = 6
-    elif re.search(r"九個月|九个月|9\s*個月|9\s*个月|nine months", text, re.I):
-        months = 9
-    else:
-        months = 12
-    start = _add_months(end, -months) + datetime.timedelta(days=1)
-    return start.isoformat(), end.isoformat()
+
+
+def _number(value: Any) -> Optional[float]:
+    result = match_named_patterns(value, [PATTERNS["number"]])
+    if not result:
+        return None
+    text = result["number"]
+    negative = text.startswith("(") and text.endswith(")")
+    amount = float(text.strip("() ").replace(",", ""))
+    return -amount if negative else amount
+
+
+def _year(value: Any) -> Optional[int]:
+    result = match_named_patterns(value, [PATTERNS["year"]])
+    if not result:
+        return None
+    token = result["year"]
+    if token.isdigit():
+        return int(token)
+    return 2000 + int("".join(str(CN.get(ch, 0)) for ch in token[2:]))
 
 
 def _rows(table: Dict[str, Any]) -> List[List[Any]]:
@@ -92,7 +213,7 @@ def _rows(table: Dict[str, Any]) -> List[List[Any]]:
 
 def _column_header(rows: List[List[Any]], width: int, column: int) -> str:
     values = []
-    for row in rows[:5]:
+    for row in rows[:HEADER_SCAN_ROWS]:
         source = column - max(0, width - len(row))
         if 0 <= source < len(row):
             values.append(str(row[source] or ""))
@@ -103,23 +224,39 @@ def _clean_name(value: Any) -> str:
     return re.sub(r"^(?:其中[:：]?\s*|[-–—·•]{1,3}\s*)", "", str(value or "").strip())
 
 
+def _name_overlap(name, prior_names) -> bool:
+    name_key = name.replace(" ", "")
+    for prior in prior_names or ():
+        prior_key = prior.replace(" ", "")
+        if prior_key and (name_key in prior_key or prior_key in name_key):
+            return True
+    return False
+
+
+def _is_header_row(row) -> bool:
+    text = " ".join(str(cell or "") for cell in row)
+    return _matches("header", text)
+
+
 def _clean_header(value: Any) -> str:
     text = str(value or "").replace("\n", " ")
-    text = YEAR.sub("", text)
-    text = CURRENCY.sub("", text)
-    text = UNIT.sub("", text)
+    text = re.sub(r"20\d{2}|二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2}", "", text)
+    text = re.sub(r"人民幣|人民币|港幣|港币|港元|美元|歐元|欧元|日圓|日元", "", text)
+    text = re.sub(r"百萬|百万|萬|万|千|元|million|thousand", "", text, flags=re.I)
     text = re.sub(r"未經審核|未审核|未經審計|未审计|unaudited", "", text, flags=re.I)
     return re.sub(r"[()（）\s]+", "", text)
 
 
-def _is_total(value: Any) -> bool:
-    return bool(TOTAL.fullmatch(str(value or "").strip()))
-
-
-def _currency_unit(text: str):
-    currency = CURRENCY.search(text)
-    unit = UNIT.search(text)
-    return (currency.group() if currency else ""), (unit.group() if unit else "")
+def _label_kind(value: Any) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    text = re.sub(r"截至.*止(?:六個月|六个月|九個月|九个月|年度|年).*$", "", text).strip()
+    if _matches("subtotal", text):
+        return "subtotal"
+    if _matches("final_total", text):
+        return "final"
+    return None
 
 
 def _fact(table: Dict[str, Any], name: str, amount: float, start: str, end: str,
@@ -133,7 +270,4 @@ def _fact(table: Dict[str, Any], name: str, amount: float, start: str, end: str,
         "end_date": end,
         "currency": currency,
         "unit": unit,
-        "row_index": 0,
-        "column_index": 0,
-        "header": "",
     }
