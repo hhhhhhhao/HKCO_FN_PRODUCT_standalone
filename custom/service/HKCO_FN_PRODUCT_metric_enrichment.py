@@ -3,7 +3,7 @@
 import re
 
 from custom.service.HKCO_FN_PRODUCT_extraction import COST, GROSS_PROFIT, _number, _year
-from custom.service.HKCO_FN_PRODUCT_extraction.common import _column_header
+from custom.service.HKCO_FN_PRODUCT_extraction.common import _column_header, _label_kind
 
 
 def _product_key(value):
@@ -72,13 +72,22 @@ def _enrich_from_metric_sections(related_inner_lines, main_inner_lines, revenue_
             if table is selected_physical_table:
                 continue
             rows = [list(row) for row in table["table"] if isinstance(row, (list, tuple))]
+            table_text = " ".join(str(cell or "") for row in rows for cell in row)
+            if metric == "GROSS_PROFIT" and "毛利率" not in table_text:
+                continue
+            if metric == "MBCOST" and "成本" not in table_text:
+                continue
             year_columns = _metric_year_columns(rows)
             if not year_columns:
                 continue
             identity_column = _metric_identity_column(rows, products)
+            has_product_match = False
             for row in rows:
                 label = str(row[identity_column] or "").strip() if identity_column < len(row) else ""
-                key = _product_key(label) if label else "合计"
+                kind = _label_kind(label)
+                if kind == "subtotal":
+                    continue
+                key = "合计" if (kind == "final" or not label) else _product_key(label)
                 group = products.get(key)
                 if group is None:
                     group = next(
@@ -87,6 +96,8 @@ def _enrich_from_metric_sections(related_inner_lines, main_inner_lines, revenue_
                     )
                 if group is None:
                     continue
+                if key != "合计":
+                    has_product_match = True
                 for index, (column, year) in enumerate(year_columns):
                     amount = _number(row[column]) if column < len(row) else None
                     if amount is None:
@@ -97,6 +108,8 @@ def _enrich_from_metric_sections(related_inner_lines, main_inner_lines, revenue_
                         None,
                     )
                     if reference is None:
+                        continue
+                    if key == "合计" and not has_product_match:
                         continue
                     facts.append({
                         **reference,

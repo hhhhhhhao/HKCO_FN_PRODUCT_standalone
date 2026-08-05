@@ -63,7 +63,7 @@ def extract(table: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, An
     product_indexes = []
     for index in range(revenue_index - 1, max(-1, revenue_index - 9), -1):
         label = _row_label(rows[index])
-        if _label_kind(label) == "subtotal":
+        if _label_kind(label) in ("subtotal", "final"):
             break
         if not label or (_matches("pl_line", label) and not _name_overlap(label, prior_names)):
             break
@@ -75,7 +75,7 @@ def extract(table: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, An
     if not product_indexes:
         for index in range(revenue_index + 1, min(len(rows), revenue_index + 9)):
             label = _row_label(rows[index])
-            if _label_kind(label) == "subtotal":
+            if _label_kind(label) in ("subtotal", "final"):
                 break
             if not label:
                 if any(_number(cell) is not None for cell in rows[index]):

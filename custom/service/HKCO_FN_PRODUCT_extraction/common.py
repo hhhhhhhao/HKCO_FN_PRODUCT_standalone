@@ -17,18 +17,18 @@ CN = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,
 PATTERNS = {
     "number": r"^(?P<number>\(?-?[\d,]+(?:\.\d+)?\)?)$",
     "year": r"(?P<year>20\d{2}|二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2})",
-    "revenue": r"(?P<revenue>收入|收益|營業額|营业额|銷售額|销售额|revenue|turnover|sales)",
+    "revenue": r"(?P<revenue>收入|收益|營業額|营业额|銷售額|销售额|銷售|销售|revenue|turnover|sales)",
     "revenue_label": r"^(?P<label>收入|收益|營業額|營業收入|銷售收入|銷售額|revenue|turnover|sales)$",
-    "pl_line": r"(?P<pl>成本|毛利|溢利|虧損|開支|費用|profit|loss)",
+    "pl_line": r"(?P<pl>成本|毛利|溢利|虧損|損失|開支|費用|profit|loss)",
     "metric": r"^(?P<metric>分部業績|分部收益|毛利|成本|溢利|虧損|開支|費用|折舊|利息收入|profit|loss|expense|subtotal|total)$",
-    "metric_contains": r"(?P<metric>分部業績|分部收益|毛利|成本|溢利|虧損|開支|費用|折舊|利息收入|EBITDA|EBIT|非流動資產|流動資產|股東應佔|profit|loss|expense|subtotal|total)",
+    "metric_contains": r"(?P<metric>分部業績|分部收益|毛利|成本|溢利|虧損|損失|開支|費用|折舊|利息收入|EBITDA|EBIT|非流動資產|流動資產|股東應佔|第三方|關聯方|銷售產品|提供服務|profit|loss|expense|subtotal|total)",
     "external": r"(?P<external>外部|對外|对外|external)",
     "header": r"(?P<header>20\d{2}|二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2}|千元|千港元|百萬|百万|期間|期间|附註|附注|年度|止年度|止六個月|止六个月)",
     "recognition": r"(?P<recognition>時間點|時點|时间点|隨時間|随时间|一段時間|一段时间|某一時點|某一时点|某個時點|某个时点)",
     "note": r"^(?P<note>附註|附注|註|注|note)",
     "cjk": r"(?P<cjk>[\u4e00-\u9fff])",
     "final_total": r"^(?P<final>合計|合计|總計|总计|總額|总额|總收入|总收入|總收益|总收益|淨收益總額|净收益总额|收益總額|收入總額|銷售淨額|销售净额|總營業額|总营业额|集團總額|集团总额|綜合|综合|本集團|本集团|集團|集团|合併|合并|total)$",
-    "subtotal": r"^(?P<sub>可報告分部總計|可報告分部总计|可呈報分部總計|可呈報分部总计|應呈報分類總計|應呈報分類总计|持續經營分類總計|持续经营分类总计|報告分部總計|报告分部总计|分部總計|分部总计|分部總額|分部总额|擔保費收益總額|担保费收益总额|擔保費收益淨額|担保费收益净额|收益總額|收益淨額|來自客户合約的收益|來自客戶合約的收益|來自客户合約的收入|來自客戶合約的收入|來自客户合約之總收入|來自客戶合約之總收入|按客户類型劃分的收益總額|按客戶類型劃分的收益總額|第三方|關聯方|可呈報分部|可報告分部|小計|小计|subtotal|sub-total)$",
+    "subtotal": r"^(?P<sub>可報告分部總計|可報告分部总计|可呈報分部總計|可呈報分部总计|應呈報分類總計|應呈報分類总计|持續經營分類總計|持续经营分类总计|報告分部總計|报告分部总计|分部總計|分部总计|分部總額|分部总额|擔保費收益總額|担保费收益总额|擔保費收益淨額|担保费收益净额|收益總額|收益淨額|收益净额|銷售產品|销售产品|提供服務|提供服务|主要地區收益總額|主要地区收益总额|來自客户合約的收益|來自客戶合約的收益|來自客户合約的收入|來自客戶合約的收入|來自客户合約之總收入|來自客戶合約之總收入|按客户類型劃分的收益總額|按客戶類型劃分的收益總額|第三方|關聯方|可呈報分部|可報告分部|小計|小计|subtotal|sub-total)$",
 }
 
 
@@ -53,9 +53,15 @@ def _matches(name, text):
 
 
 def get_currency(arr):
-    units = ['人民币','人民幣','港元','港幣','美元','欧元','歐元','日元','日圓','新加坡元','加拿大元','马来西亚林吉特','馬來西亞林吉特','澳门元','澳門元']
-    aliases = {'人民幣': '人民币', '港幣': '港元', '港币': '港元', '歐元': '欧元', '日圓': '日元', '馬來西亞林吉特': '马来西亚林吉特', '澳門元': '澳门元'}
+    units = ['人民币','人民幣','港元','港幣','美元','欧元','歐元','日元','日圓','新加坡元','新元','加拿大元','马来西亚林吉特','馬來西亞林吉特','澳门元','澳門元']
+    aliases = {'人民幣': '人民币', '港幣': '港元', '港币': '港元', '歐元': '欧元', '日圓': '日元', '新加坡元': '新加坡元', '新元': '新加坡元', '馬來西亞林吉特': '马来西亚林吉特', '澳門元': '澳门元'}
     for a in arr:
+        if 'HK$' in a:
+            return '港元'
+        if 'RMB' in a or 'CNY' in a:
+            return '人民币'
+        if 'US$' in a or 'USD' in a:
+            return '美元'
         for unit in units:
             if unit in a:
                 return aliases.get(unit, unit)
@@ -63,17 +69,32 @@ def get_currency(arr):
 
 
 def get_unit(arr):
-    units = ['千港元','千元','千美元','千人民币','百萬','百万','亿元','億元','万元','萬元','萬','万','元','million','thousand']
+    units = ['千港元','千新元','千新加坡元','千元','千美元','千人民币','百萬','百万','亿元','億元','万元','萬元','萬','万','元','million','thousand']
     for a in arr:
+        if re.search(r"\$\s*[']?000|[']000", a):
+            return '千元'
         for unit in units:
             if unit in a:
                 return unit
     return ''
 
 
+def _cn_number(token):
+    token = str(token or "").replace("○", "零")
+    if token.isdigit():
+        return int(token)
+    if "十" in token:
+        left, right = token.split("十", 1)
+        tens = CN.get(left, 1) if left else 1
+        units = CN.get(right, 0) if right else 0
+        return tens * 10 + units
+    return CN.get(token, 0)
+
+
 def get_end_date(text_line):
     text_line = text_line.replace(" ", "").replace("\n", "").replace("\t", "")
     patterns = [
+        r"(?P<year>二零[〇零一二三四五六七八九]{2}|二〇[〇零一二三四五六七八九]{2})年(?P<month>[〇零一二三四五六七八九十]{1,3})月(?P<day>[〇零一二三四五六七八九十]{1,3})日",
         r"(?P<year>\d{4})年(?P<month>\d{1,2})月",
         r"(?P<year>\d{4})年(?P<month>\d{1,2})末",
         r"(?P<year>\d{4})年(?P<season>第[一二三四1234]季度)",
@@ -97,6 +118,14 @@ def get_end_date(text_line):
         previous_season = match_res.get("previous_season")
         month_range = match_res.get("month_range")
         last_month = match_res.get("last_month")
+        day = None
+        month = _cn_number(month) if month and not str(month).isdigit() else month
+        day = _cn_number(day) if day and not str(day).isdigit() else day
+        if year and not str(year).isdigit():
+            year = 2000 + int("".join(str(CN.get(ch, 0)) for ch in year[2:]))
+
+        if month and day is not None:
+            return f"{year}-{int(month):02d}-{int(day):02d}"
 
         if season:
             if "一季度" in season or "1季度" in season:
@@ -251,6 +280,7 @@ def _label_kind(value: Any) -> Optional[str]:
     text = str(value or "").strip()
     if not text:
         return None
+    text = text.rstrip(":：")
     text = re.sub(r"截至.*止(?:六個月|六个月|九個月|九个月|年度|年).*$", "", text).strip()
     if _matches("subtotal", text):
         return "subtotal"
