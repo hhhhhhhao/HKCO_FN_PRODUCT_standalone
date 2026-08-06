@@ -28,7 +28,7 @@ PATTERNS = {
     "note": r"^(?P<note>附註|附注|註|注|note)",
     "cjk": r"(?P<cjk>[\u4e00-\u9fff])",
     "final_total": r"^(?P<final>合計|合计|總計|总计|總額|总额|總收入|总收入|總收益|总收益|淨收益總額|净收益总额|收益總額|收入總額|銷售淨額|销售净额|總營業額|总营业额|集團總額|集团总额|綜合|综合|本集團|本集团|集團|集团|合併|合并|total)$",
-    "subtotal": r"^(?P<sub>可報告分部總計|可報告分部总计|可呈報分部總計|可呈報分部总计|應呈報分類總計|應呈報分類总计|持續經營分類總計|持续经营分类总计|報告分部總計|报告分部总计|分部總計|分部总计|分部總額|分部总额|擔保費收益總額|担保费收益总额|擔保費收益淨額|担保费收益净额|收益總額|收益淨額|收益净额|銷售產品|销售产品|提供服務|提供服务|主要地區收益總額|主要地区收益总额|來自客户合約的收益|來自客戶合約的收益|來自客户合約的收入|來自客戶合約的收入|來自客户合約之總收入|來自客戶合約之總收入|按客户類型劃分的收益總額|按客戶類型劃分的收益總額|第三方|關聯方|可呈報分部|可報告分部|小計|小计|subtotal|sub-total)$",
+    "subtotal": r"^(?P<sub>可報告分部總計|可報告分部总计|可呈報分部總計|可呈報分部总计|須予報告分部小計|应予报告分部小计|應呈報分類總計|應呈報分類总计|持續經營分類總計|持续经营分类总计|報告分部總計|报告分部总计|分部總計|分部总计|分部總額|分部总额|分部小計|分部小计|擔保費收益總額|担保费收益总额|擔保費收益淨額|担保费收益净额|收益總額|收益淨額|收益净额|收入總額|收入总额|銷售產品|销售产品|提供服務|提供服务|主要地區收益總額|主要地区收益总额|來自客户合約的收益|來自客戶合約的收益|來自客户合約的收入|來自客戶合約的收入|來自客户合約之總收入|來自客戶合約之總收入|按客户類型劃分的收益總額|按客戶類型劃分的收益總額|第三方|關聯方|可呈報分部|可報告分部|小計|小计|subtotal|sub-total)$",
 }
 
 
@@ -48,23 +48,35 @@ def match_patterns(s, patterns):
     return None
 
 
-def _matches(name, text):
-    return match_patterns(text, [(PATTERNS[name], 1)]) is not None
+# CJK 异体字归一化：MinerU OCR 输出可能混用多个 Unicode 码点表示的"同一个字"，
+# 在正则匹配前统一折叠到正则中已覆盖的字符，避免漏匹配。
+_CJK_NORM = str.maketrans({
+    "凈": "淨",   # 净的异体 (U+51C8 → U+6DE8)
+})
+
+
+def _matches(name: str, text: str) -> bool:
+    """正则匹配（归一化 CJK 异体字后）。"""
+    return match_patterns(text.translate(_CJK_NORM), [(PATTERNS[name], 1)]) is not None
 
 
 def get_currency(arr):
     units = ['人民币','人民幣','港元','港幣','美元','欧元','歐元','日元','日圓','新加坡元','新元','加拿大元','马来西亚林吉特','馬來西亞林吉特','澳门元','澳門元']
     aliases = {'人民幣': '人民币', '港幣': '港元', '港币': '港元', '歐元': '欧元', '日圓': '日元', '新加坡元': '新加坡元', '新元': '新加坡元', '馬來西亞林吉特': '马来西亚林吉特', '澳門元': '澳门元'}
     for a in arr:
-        if 'HK$' in a:
+        if 'HK$' in a or 'HK＄' in a:
             return '港元'
-        if 'RMB' in a or 'CNY' in a:
+        if 'RMB' in a or 'CNY' in a or 'RMB＄' in a:
             return '人民币'
-        if 'US$' in a or 'USD' in a:
+        if 'US$' in a or 'USD' in a or 'US＄' in a:
             return '美元'
         for unit in units:
             if unit in a:
                 return aliases.get(unit, unit)
+    # 裸 $：港股公告中 $ 默认为港元
+    for a in arr:
+        if '$' in a or '＄' in a:
+            return '港元'
     return ''
 
 
@@ -287,6 +299,35 @@ def _label_kind(value: Any) -> Optional[str]:
     if _matches("final_total", text):
         return "final"
     return None
+
+
+def find_section_break(rows: List[List[str]], prior_names=()) -> int:
+    """找到第一个「像新子表标题」的行：第一列有文字、其余列全无数字、且不在
+    prior_names 里。返回该行下标，后续行视为另一个子表，不再抽取。
+    找不到则返回 len(rows) 表示整张表都可用。
+    prior_names 为空时不截断（没有上期数据无法判断安全截断点）。
+    """
+    if not prior_names:
+        return len(rows)
+    data_started = False
+    for ri, row in enumerate(rows):
+        if not row:
+            continue
+        name = _clean_name(row[0])
+        # 还没看到第一个数据行之前，不触发截断（跳过表头区域）
+        if not data_started:
+            if name and any(_number(cell) is not None for cell in row[1:]):
+                data_started = True
+            continue
+        # 子标题/子分类行（带 - 前缀或含收入/收益/成本/费用等业务关键词）
+        # 不是 section break，不截断
+        raw = str(row[0] or "").strip()
+        is_sub_header = raw.startswith("-") or raw.startswith("–") or raw.startswith("—") or _matches("revenue", name) or _matches("pl_line", name)
+        # 第一列有文字 + 其余列全无数字 + 不是上期产品名 + 不是子标题 → 截断点
+        if name and not _name_overlap(name, prior_names) and not is_sub_header:
+            if all(_number(cell) is None for cell in row[1:]):
+                return ri
+    return len(rows)
 
 
 def _fact(table: Dict[str, Any], name: str, amount: float, start: str, end: str,

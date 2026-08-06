@@ -80,11 +80,27 @@ KEYWORDS = [
     "收益确认时间",
 ]
 
+# 产品/收入分拆关键词：表内出现这些内容说明是产品收入分布表（非纯损益表）
+PRODUCT_SPLIT_KEYWORDS = [
+    "客戶合約收益", "客户合约收益", "客戶合約收入", "客户合约收入",
+    "貨品類型", "货品类型", "產品類型", "产品类型", "服務類型", "服务类型",
+    "商品和服務的類型", "商品和服务的类型",
+    "收入明細", "收入明细", "收益明細", "收益明细",
+    "按主要產品", "按主要产品", "按產品", "按产品",
+    "按客戶", "按客户", "按業務", "按业务",
+    "銷售產品", "销售产品", "提供服務", "提供服务",
+    "分部收益", "分部收入", "分部業績", "分部业绩",
+    "來自客戶合約", "来自客户合约",
+    "來自客戶合同", "来自客户合同",
+    "按商品類型", "按商品类型",
+]
+
 
 def classify_table(rows, prior_names):
     if not rows:
         return "unsupported"
 
+    # 规则 1：上期产品名命中 → 方向信号可信
     if prior_names:
         max_row = 0
         for row in rows:
@@ -109,8 +125,17 @@ def classify_table(rows, prior_names):
                 max_col = count
 
         if max_row or max_col:
+            # 规则 1a：平局时仅当结构信号极强（≥3倍差）时才打破，否则保持原默认
+            if max_row == max_col:
+                first_row_text = sum(1 for c in (rows[0] if rows else []) if str(c).strip() and not format_number(c))
+                first_col_text = sum(1 for r in rows if r and str(r[0]).strip() and not format_number(r[0]))
+                if first_col_text >= 6 and first_col_text >= first_row_text * 3:
+                    return "product_in_columns"
+                if first_row_text >= 6 and first_row_text >= first_col_text * 3:
+                    return "product_in_rows"
             return "product_in_rows" if max_row >= max_col else "product_in_columns"
 
+    # 规则 2：收入确认时间关键词（隨時間/於某一時點等）→ 检验同行/同列文本密度
     row_votes = 0
     col_votes = 0
     for row_index, row in enumerate(rows):
@@ -119,19 +144,13 @@ def classify_table(rows, prior_names):
             if not any(keyword in cell_text for keyword in KEYWORDS):
                 continue
             same_row = [
-                str(value)
-                for value in row
-                if str(value).strip()
-                and str(value) != cell_text
-                and not format_number(value)
+                str(value) for value in row
+                if str(value).strip() and str(value) != cell_text and not format_number(value)
             ]
             same_col = [
-                str(other_row[col_index])
-                for other_row in rows
-                if col_index < len(other_row)
-                and str(other_row[col_index]).strip()
-                and str(other_row[col_index]) != cell_text
-                and not format_number(other_row[col_index])
+                str(other_row[col_index]) for other_row in rows
+                if col_index < len(other_row) and str(other_row[col_index]).strip()
+                and str(other_row[col_index]) != cell_text and not format_number(other_row[col_index])
             ]
             if same_row:
                 row_votes += 1
@@ -139,6 +158,23 @@ def classify_table(rows, prior_names):
                 col_votes += 1
     if row_votes or col_votes:
         return "product_in_rows" if row_votes >= col_votes else "product_in_columns"
+
+    # 规则 3：产品/收入分拆关键词 → 结合结构判断方向
+    has_product_kw = any(
+        any(keyword in str(cell) for keyword in PRODUCT_SPLIT_KEYWORDS)
+        for row in rows for cell in row
+    )
+    first_row_text = sum(1 for c in (rows[0] if rows else []) if str(c).strip() and not format_number(c))
+    first_col_text = sum(1 for r in rows if r and str(r[0]).strip() and not format_number(r[0]))
+    if has_product_kw and (first_row_text >= 2 or first_col_text >= 2):
+        return "product_in_rows" if first_row_text >= first_col_text else "product_in_columns"
+
+    # 规则 4：纯结构推断 — 2+行2+列表格，第一行/列文本密度决定方向
+    if len(rows) >= 2 and max(len(r) for r in rows) >= 2:
+        if first_row_text >= 2 and first_row_text > first_col_text:
+            return "product_in_rows"
+        if first_col_text >= 2 and first_col_text > first_row_text:
+            return "product_in_columns"
 
     return "unsupported"
 

@@ -447,6 +447,10 @@ def field_sig(v: Any, tol: float, field: str = "") -> Tuple[str, Any]:
         # 数值按容差量化，避免 21885 / 21885.0 被当成不同 key
         step = max(tol, 1e-12)
         return ("n", round(f / step))
+    # GT 未标注（None）和抽取为空（""）统一成空签名，避免 MBCOST/GROSS_PROFIT
+    # None vs "" 被当成不同值造成匹配/比对误判。
+    if v is None or (isinstance(v, str) and v.strip() == ""):
+        return ("e",)
     if field == "PRODUCTNAME":
         return ("s", _norm_match_text(v))
     # STARTDATE/REPORTDATE：旧 T16:00Z 与新 T00:00Z 都归一成业务日历日再比
@@ -828,12 +832,13 @@ def compare_one(
         field_bad = Counter()
 
     # ---------- 整篇豁免：选表来自 full_history（全部上期产品名命中）----------
-    # 抽取为空（0 行）时不豁免 — 选表对了但没抽出来，仍然是真实问题。
+    # 抽取为空 或 合计验证失败时不豁免 — 选表对了但提取质量不行，仍然是真实问题。
     forgiven_full_history = 0
     if (
         (missing > 0 or extra > 0 or value_wrong > 0)
         and pipe.get("from_full_history")
         and local_n > 0
+        and pipe.get("total_validated", True)
     ):
         forgiven_full_history = 1
         # 同 forgiven_gt_amount_subset：整篇重置为完全匹配

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from custom.service.HKCO_FN_PRODUCT_extraction.common import (
+    PATTERNS,
     _column_header,
     _clean_name,
     _fact,
@@ -51,12 +52,35 @@ def extract(table: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, An
         ):
             year_columns.append((column, year))
     if not year_columns:
+        # 回退：表头无年份 → 从全文提取所有年份，赋予数值列
+        import re as _re
+        all_years = []
+        for m in _re.finditer(PATTERNS["year"], text):
+            y = _year(m.group(0))
+            if y is not None and y not in all_years:
+                all_years.append(y)
+        all_years.sort()
+        data_cols = [c for c in range(width) if c > 0 and any(
+            c < len(row) and _number(row[c]) is not None for row in rows
+        )]
+        for i, col in enumerate(data_cols):
+            y = all_years[i] if i < len(all_years) else (all_years[-1] if all_years else None)
+            if y:
+                year_columns.append((col, y))
+    if not year_columns:
         return []
 
     revenue_index = next(
         (index for index, row in enumerate(rows) if _is_revenue_row(row)),
         None,
     )
+    if revenue_index is None:
+        # 回退：revenue_label 要求完整匹配，"收益:" 或 "收入 " 等会失败
+        for index, row in enumerate(rows):
+            cells = [str(cell or "").strip() for cell in row]
+            if any(_matches("revenue", c) for c in cells[:2]) and any(_number(cell) is not None for cell in row):
+                revenue_index = index
+                break
     if revenue_index is None:
         return []
 
@@ -87,7 +111,18 @@ def extract(table: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, An
                 product_indexes.append(index)
 
     if not product_indexes:
-        return []
+        # 纯损益表无产品分项：直接用收入行作为"合计"
+        facts = []
+        for column, year in year_columns:
+            amount = _number(rows[revenue_index][column]) if column < len(rows[revenue_index]) else None
+            if amount is None:
+                continue
+            end = get_end_date(text) or f"{year}-12-31"
+            if int(end[:4]) != year:
+                end = f"{year}{end[4:]}"
+            start = get_start_date(None, end, f"{year}年", text)
+            facts.append(_fact(table, "合计", amount, start, end, currency, unit))
+        return facts
 
     facts = []
     sums = {}

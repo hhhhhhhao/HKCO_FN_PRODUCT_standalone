@@ -48,6 +48,27 @@ def _merge_facts(base, extra):
     }
     if base and extra and base_names and extra_names and not (base_names & extra_names):
         return list(base)
+
+    # 两张表都有「合计」但金额不同 → 是不同的拆解维度（如总表 vs 子产品明细），
+    # 只保留第一张表的合计和产品行，不合并第二张表。
+    if base and extra and base_names and extra_names:
+        base_totals = {
+            (f.get("start_date"), f.get("end_date")): f.get("amount")
+            for f in base if str(f.get("product_name")) == "合计"
+        }
+        extra_totals = {
+            (f.get("start_date"), f.get("end_date")): f.get("amount")
+            for f in extra if str(f.get("product_name")) == "合计"
+        }
+        common_keys = set(base_totals) & set(extra_totals)
+        if common_keys and base_totals and extra_totals:
+            # 任一期间合计值差异超过 1% → 不合并
+            if any(
+                abs((base_totals[k] or 0) - (extra_totals[k] or 0)) > abs(base_totals[k] or 0) * 0.01
+                for k in common_keys
+            ):
+                return list(base)
+
     merged = {}
     for fact in base + extra:
         key = (
