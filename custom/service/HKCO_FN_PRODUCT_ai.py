@@ -21,6 +21,14 @@ from custom.utils.call_gpt_util import call_gpt_service
 
 def extract_ai_tables(table_blocks, pdf_path, info_code, context):
     """处理 ai_table 表块，返回事实列表和 debug 信息。"""
+    return [], {
+                "ai_table_count": 0,
+                "ai_called_count": 0,
+                "ai_failed_count": 0,
+                "ai_failed_ids": [],
+                "ai_fact_count": 0,
+                "table_debug": [],
+            }
     if not table_blocks:
         return [], {
             "ai_table_count": 0,

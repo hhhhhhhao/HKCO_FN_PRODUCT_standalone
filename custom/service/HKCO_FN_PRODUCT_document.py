@@ -7,6 +7,8 @@
 import re
 import string
 
+from custom.service.HKCO_FN_PRODUCT_utils import contains_chinese, is_number
+
 
 def match_patterns(s, patterns):
     for pattern, group in patterns:
@@ -32,7 +34,7 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
     text = line.get("text", "").strip()
 
-    if text == '截至二零二四年十二月三十一日止六個月':
+    if text == '下表載列二零二六財年的收益明細,連同二零二五財年的比較業績:':
         print
 
     text = line["text"]
@@ -40,6 +42,12 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
         return False
     
     if sum(1 for ch in text if ch.isdigit()) > 5:
+        return False
+
+    if is_number(text):
+        return False
+
+    if not contains_chinese(text):
         return False
 
     # if line.get("is_table", False):
@@ -62,7 +70,7 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
 
     # 排除逗号或句号过多的行（超过3个）
-    if text.count(",") >= 3 or text.count("、") >= 2 or text.count(".") >= 3 or (text.count(".") >= 2 and sum(1 for c in text if c.isdigit()) >= 5):
+    if text.count(",") >= 3 or text.count("、") >= 3 or text.count(".") >= 3 or (text.count(".") >= 2 and sum(1 for c in text if c.isdigit()) >= 5):
         return False
 
 
@@ -72,25 +80,27 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
 def get_lines_grouped(lines):
     title_regex = [
-        (r"^[\(（]*[、\)）.．。]*[一二三四五六七八九十①②③④⑤⑥⑦⑧⑨A-Da-d]+[、\)）.．。]*", 0),
+        (r"^[\(（]*[、\)）.．。]*[一二三四五六七八九十①②③④⑤⑥⑦⑧⑨A-Da-di]+[、\)）.．。]*", 0),
         (r"^[\(（]*[、\)）.．。]*[1234567890]+[、\)）.．。]*(表|收入|收益|附註|)", 0),
-        (r"(表|附註|各項:|如下:|包括:|淨額|劃分)$", 0), # not 收入: 收益:
+        (r"(表|附註|各項:|如下:|劃分)$", 0), # not 收入: 收益: 包括: 淨額
         (r"按.*(劃分|分)", 0),
-        (r"^(地域資料|分部.*業績|有關.*資料)$", 0),
+        (r"^(地域資料|分部.*業績|有關.*資料|可呈報.*對賬|管理層.*分析|分部資料|下表.*業績:)$", 0),
     ]
     exclude_regex = [
         (r"^(一般)", 0),
         (r"^[一二三四五六七八九十0123456789]+(室|期|级|类|个|家|致)", 0),
+        (r"^[一二三四五六七八九十0123456789]+個月$", 0),
         (r"^(\d{4}年|\d{2}月|202\d)", 0),
         (r"^\d+(个月|年)", 0),
         (r"^\(\d+(个月|年)", 0),
         (r"^\d+\-\d+(个月|年)", 0),
         (r"[。%;；《》]", 0),
         (r"^(四川|十堰|三峡|三一|一大|九江|五矿)", 0),
-        (r"(元|位于|注册资本为|100)", 0),
+        (r"(元|位于|注册资本为|100|合計|小計|準則)", 0),
         (r"^(披露)$", 0),
         (r"^(截).*(月|年度)$", 0),
         (r"^(於|于)\s*\d{4}年\d{1,2}月\d{1,2}日", 0),
+        (r"^[一二三四五六七八九十零]{4}年$", 0),
     ]
     sure_regex = [
         (r"^(近[一二三四五六七八九])年.*(表|如下:|所示:)$", 0),

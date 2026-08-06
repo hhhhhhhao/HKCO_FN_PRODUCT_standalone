@@ -28,7 +28,7 @@ from custom.service.HKCO_FN_PRODUCT_classifier import classify_main_inner
 from custom.service.HKCO_FN_PRODUCT_ai import extract_ai_tables
 from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
-from custom.service.HKCO_FN_PRODUCT_utils import fullwidth_to_halfwidth
+from custom.service.HKCO_FN_PRODUCT_utils import contains_chinese, fullwidth_to_halfwidth
 from custom.service.EAPS_HKCO_FN_PRODUCT_format_data import format_records
 from custom.service.HKCO_FN_PRODUCT_extraction import extract_main_table
 from custom.service.HKCO_FN_PRODUCT_metric_enrichment import enrich_metrics
@@ -227,6 +227,10 @@ def format_lines(page_lines, page_number):
 _PROCESS_DEBUG = {"path": None, "lines": [], "enabled": False}
 
 
+class _UnrecognizedDocument(Exception):
+    """没有中文内容的公告，直接标记为无法识别。"""
+
+
 def _dbg_reset(info_code, configs=None):
     """仅 configs.debug_enabled=True 时落盘；回测默认关闭，避免并发写文件。"""
     _PROCESS_DEBUG["lines"] = []
@@ -346,6 +350,10 @@ def _build_extract_result(
         stage = "exception"
         status = "failed"
         msg = err
+    elif "无法识别" in reasons:
+        stage = "locate_fail"
+        status = "no_data"
+        msg = "无法识别"
     elif "无ocr" in reasons:
         stage = "locate_fail"
         status = "no_data"
@@ -487,6 +495,10 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     # 获取文档流
                     lines = get_lines(pdf_path)
                     _dbg(f"lines_count={len(lines)}")
+                    if not any(contains_chinese(str(line.get("text") or "")) for line in lines):
+                        reason_arr.append("无法识别")
+                        _dbg("reason_arr=无法识别（无中文）")
+                        raise _UnrecognizedDocument()
 
                     # 1. 正则切章。
 
@@ -499,8 +511,8 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     main_inner_lines, related_inner_lines, from_full_history = select_main_table(pdf_path, lines_grouped, context["prior_product_names"])
                     _dbg_section("main_table_selection")
                     _dbg(f"related_inner_lines={len(related_inner_lines)} from_full_history={from_full_history}")
-                    _dbg(f"selected_page_numbers={sorted({line.get('page_number') for line in main_inner_lines})}")
-                    _dbg(f"selected_line_count={len(main_inner_lines)}")
+                    _dbg(f"selected_page_numbers={sorted({line.get('page_number') for line in (main_inner_lines or [])})}")
+                    _dbg(f"selected_line_count={len(main_inner_lines or [])}")
                     _dbg("main_inner_lines=" + json.dumps([
                         {
                             "page_number": line.get("page_number"),
@@ -641,6 +653,14 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     }
 
                     _dbg(f"reason_arr={reason_arr} debug_meta={debug_meta}")
+                except _UnrecognizedDocument:
+                    result_data = []
+                    target_items = []
+                    debug_meta = {
+                        "selected_count": 0,
+                        "source_pages": [],
+                        "from_full_history": False,
+                    }
                 finally:
                     _dbg_flush()
 
@@ -853,7 +873,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202503281648691685"
+    code = "AN202605281822931817"
     pdf_path = os.path.join(root, "pdf_json", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

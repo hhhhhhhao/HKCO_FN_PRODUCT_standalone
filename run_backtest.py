@@ -1611,6 +1611,10 @@ def _finalize_job(
     cmp = compare_one(records, gt.get(code, []), code, schema, pipeline=pipeline)
     cmp["pdf_path"] = pdf_path
     cmp["pdf_url"] = pdf_url
+    if "无法识别" in str(pipeline.get("message") or "") or "无法识别" in str(pipeline.get("stage_label") or ""):
+        cmp["excluded"] = True
+        cmp["doc_category"] = "无法识别"
+        cmp["status"] = "无法识别"
     if err:
         cmp["error_message"] = err
     return cmp
@@ -1707,6 +1711,7 @@ def run_backtest(
             for fut in as_completed(futures):
                 docs.extend(fut.result())
 
+    docs = [d for d in docs if not d.get("excluded")]
     docs.sort(key=lambda d: str(d.get("infocode") or ""))
 
     agg = aggregate(docs)
