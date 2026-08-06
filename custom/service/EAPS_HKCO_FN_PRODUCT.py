@@ -25,6 +25,7 @@ from loguru import logger
 from shared.conf.service_conf import config
 from shared.enums.error_code_enum import ErrorCodeType
 from custom.service.HKCO_FN_PRODUCT_classifier import classify_main_inner
+from custom.service.HKCO_FN_PRODUCT_ai import extract_ai_tables
 from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
 from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
 from custom.service.HKCO_FN_PRODUCT_utils import fullwidth_to_halfwidth
@@ -103,47 +104,121 @@ def call_derive(call_derived_id, info_code, request_id, data, if_log=True):
     return derived_result, derive
 
 # region get_lines
-def get_lines(pdf_path,json_path_page_map):
-    def _clean_page_lines(page_lines, page_1based):
-        cleaned_lines = []
-        for line in page_lines:
-            line = {'page_number': page_1based, **line}
-            if 'type' in line:
-                del line['type']
-            if 'bbox' in line:
-                del line['bbox']
-            if 'angle' in line:
-                del line['angle']
-            if 'content' in line:
-                del line['content']
-            cleaned_lines.append(line)
-        return cleaned_lines
+def _lines_cache_path(pdf_path):
+    """get_lines 的解析缓存路径：pdf_json/<公告名>_lines_cache.json。"""
+    from pathlib import Path
 
-    # 本地回测：有 MinerU JSON 且 PDF 不存在时，直接按 JSON 页序建 lines
-    if json_path_page_map and (not pdf_path or not os.path.isfile(pdf_path)):
-        lines = []
-        for page_1based in sorted(json_path_page_map.keys()):
-            with open(json_path_page_map[page_1based], 'r', encoding='utf-8-sig') as fp:
-                original_page_lines = json.loads(fp.read())
-                page_lines = parse_mineru_result_to_lines(original_page_lines, page_1based)
-            lines = lines + _clean_page_lines(page_lines, page_1based)
-        return lines
+    repo_root = Path(__file__).resolve().parents[2]
+    pdf_name = os.path.basename(str(pdf_path))
+    stem = os.path.splitext(pdf_name)[0]
+    return repo_root / "pdf_json" / f"{stem}_lines_cache.json"
 
+
+def _load_lines_cache(pdf_path):
+    """PDF 未变化时直接复用原始 page lines，避免重复调用 pdfplumber。"""
+    cache_path = _lines_cache_path(pdf_path)
+    if not cache_path.is_file():
+        return None
+    try:
+        stat = os.stat(str(pdf_path))
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        if (
+            payload.get("source") == os.path.basename(str(pdf_path))
+            and payload.get("size") == stat.st_size
+            and payload.get("mtime_ns") == stat.st_mtime_ns
+            and isinstance(payload.get("pages"), list)
+        ):
+            return payload["pages"]
+    except Exception:
+        return None
+    return None
+
+
+def _save_lines_cache(pdf_path, raw_pages):
+    """缓存 pdfplumber 原始行；用临时文件 + os.replace 避免并发读到半截缓存。"""
+    cache_path = _lines_cache_path(pdf_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    stat = os.stat(str(pdf_path))
+    payload = {
+        "source": os.path.basename(str(pdf_path)),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "pages": raw_pages,
+    }
+    tmp_path = cache_path.with_name(cache_path.name + ".tmp")
+    tmp_path.write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    os.replace(str(tmp_path), str(cache_path))
+
+
+def get_lines(pdf_path):
+    cached_pages = _load_lines_cache(pdf_path)
+    if cached_pages is not None:
+        return [
+            line
+            for page in cached_pages
+            for line in format_lines(page["lines"], page["page_number"])
+        ]
+
+    raw_pages = []
     with ExtendPlumber.open(pdf_path) as pdf:
-        lines = []
-
+        # 读取目标章节的lines
         for page_number, pdf_page in enumerate(pdf.pages):
-            page_lines = []
-            if page_number + 1 in json_path_page_map:
-                with open(json_path_page_map[page_number + 1], 'r', encoding='utf-8-sig') as fp:
-                    original_page_lines = json.loads(fp.read())
-                    page_lines = parse_mineru_result_to_lines(original_page_lines,page_number+ 1)
+            # if page_number < 70 or page_number > 75:
+            #     continue
+            page = pdf.pages[page_number]
+            print(page_number)
+            raw_pages.append({
+                "page_number": page_number,
+                "lines": page.extract_text_lines(),
+            })
 
-            # 加上页码
-            lines = lines + _clean_page_lines(page_lines, page_number + 1)
+    try:
+        _save_lines_cache(pdf_path, raw_pages)
+    except Exception:
+        logger.warning("get_lines cache write failed: %s", pdf_path)
+    return [
+        line
+        for page in raw_pages
+        for line in format_lines(page["lines"], page["page_number"])
+    ]
 
-    return lines
+def format_lines(page_lines, page_number):
+    """
+    添加页码、清洗文本格式
+    """
+    for line in page_lines:
+        line["page_number"] = page_number + 1
+        line["text"] = fullwidth_to_halfwidth(line["text"])
+        line["text"] = line["text"].replace(' ', '').replace('①', '1、').replace('②', '2、').replace('③', '3、').replace('④', '4、').replace('⑤', '5、').replace('⑥', '6、').replace('⑦', '7、').replace('⑧', '8、').replace('⑨', '9、').replace('⑩', '10、')
 
+        # AN202504111654732368 46
+        # AN202301101581847986 43
+        if line['bottom'] > 730 and re.search(r'^\d',line['text']) and ('指' in line['text'] ):
+            line["text"]  = 'delete'
+
+        # AN202510201765622675 52
+        if line['bottom'] > 730 and re.search(r'^\d',line['text']) and ('此处披露的是' in line['text'] ):
+            line["text"]  = 'delete'
+
+        # AN202503141644380332 60
+        if line['bottom'] > 750 and re.search(r'^\d',line['text']) and ('上述' in line['text'] ):
+            line["text"]  = 'delete'
+
+    page_lines = [page_line for page_line in page_lines if not page_line['text'] == 'delete']
+
+    if page_lines and page_lines[-1]['bottom'] > 750 and re.search(r'^\d+$',page_lines[-1]['text']):
+        page_lines  = page_lines[:-1]
+    
+    if page_lines and page_lines[0]['top'] < 50 and '募集说明书' in page_lines[0]['text']:
+        page_lines  = page_lines[1:]
+
+    if page_number == 45:
+        print
+
+    return page_lines
 # endregion
 
 # region process debug dump
@@ -399,7 +474,7 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                 report_path = ""
                 reason_arr = []
                 debug_meta = {"selected_count": 0, "source_pages": [], "from_full_history": False}
-                pdf_path, json_path_page_map = get_all_paths(pdf_path, configs)
+                # pdf_path, json_path_page_map = get_all_paths(pdf_path, configs)
 
                 _dbg_reset(info_code, configs)
                 try:
@@ -410,74 +485,120 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     )
 
                     # 获取文档流
-                    lines = get_lines(pdf_path, json_path_page_map)
-                    _dbg_section("get_lines")
-                    _dbg(f"lines={len(lines or [])} pages_json={len(json_path_page_map or {})}")
+                    lines = get_lines(pdf_path)
+                    _dbg(f"lines_count={len(lines)}")
 
                     # 1. 正则切章。
+
                     lines_grouped = get_lines_grouped(lines)
                     context = _prior_context(last_period_data)
                     _dbg_section("sections")
                     _dbg(f"groups={len(lines_grouped)}")
 
                     # 2. 遍历章节，只选择一张主表。
-                    main_inner_lines, related_inner_lines, from_full_history = select_main_table(lines_grouped, context["prior_product_names"])
+                    main_inner_lines, related_inner_lines, from_full_history = select_main_table(pdf_path, lines_grouped, context["prior_product_names"])
                     _dbg_section("main_table_selection")
                     _dbg(f"related_inner_lines={len(related_inner_lines)} from_full_history={from_full_history}")
+                    _dbg(f"selected_page_numbers={sorted({line.get('page_number') for line in main_inner_lines})}")
+                    _dbg(f"selected_line_count={len(main_inner_lines)}")
+                    _dbg("main_inner_lines=" + json.dumps([
+                        {
+                            "page_number": line.get("page_number"),
+                            "text": str(line.get("text") or ""),
+                        }
+                        for line in (main_inner_lines or [])
+                    ], ensure_ascii=False))
                     debug_meta["from_full_history"] = from_full_history
 
-                    # 分类：表格名称 + 表格特征。
-                    main_inner_lines = classify_main_inner(main_inner_lines, context["prior_product_names"])
+                    # 分类：组装物理表 + 表格名称 + 表格特征。
+                    main_tables = classify_main_inner(main_inner_lines, context["prior_product_names"], pdf_path)
+                    rule_tables = [
+                        table for table in main_tables
+                        if table.get("classification") != "ai_table"
+                    ]
+                    ai_tables = [
+                        table for table in main_tables
+                        if table.get("classification") == "ai_table"
+                    ]
                     table_classifications = [
-                        line.get("classification")
-                        for line in main_inner_lines
-                        if line.get("is_table") and line.get("table")
+                        table.get("classification") for table in main_tables
                     ]
                     _dbg_section("main_table_classification")
                     _dbg(json.dumps(table_classifications, ensure_ascii=False, default=str))
+                    _dbg(f"assembled_table_count={len(main_tables)}")
+                    for table in main_tables:
+                        _dbg(json.dumps({
+                            "table_id": table.get("id"),
+                            "page_number": table.get("page_number"),
+                            "classification": table.get("classification"),
+                            "assembly_debug": table.get("assembly_debug"),
+                            "classifier_debug": table.get("classifier_debug"),
+                        }, ensure_ascii=False, default=str))
+                    _dbg(f"rule_table_ids={[table.get('id') for table in rule_tables]}")
+                    _dbg(f"ai_table_ids={[table.get('id') for table in ai_tables]}")
 
                     # 3. 分析主表结构并抽取产品、收入。
-                    main_facts = extract_main_table(main_inner_lines, context)
+                    main_facts = extract_main_table(rule_tables, context)
+                    rule_fact_count = len(main_facts)
+                    ai_facts, ai_debug = extract_ai_tables(
+                        ai_tables,
+                        pdf_path,
+                        info_code,
+                        context,
+                    )
+                    main_facts = list(main_facts) + list(ai_facts)
                     main_classification = next(
                         (
-                            line.get("classification")
-                            for line in main_inner_lines
-                            if line.get("classification")
+                            table.get("classification")
+                            for table in rule_tables
                         ),
-                        "unsupported",
+                        next(
+                            (
+                                table.get("classification")
+                                for table in ai_tables
+                            ),
+                            "ai_table",
+                        ),
                     )
                     _dbg_section("main_table_extraction")
                     _dbg(json.dumps({
                         "classification": main_classification,
-                        "fact_count": len(main_facts),
+                        "rule_fact_count": rule_fact_count,
+                        "ai_fact_count": len(ai_facts),
+                        "total_fact_count": len(main_facts),
+                        "ai_debug": ai_debug,
                     }, ensure_ascii=False))
 
                     # 4. 必要时从其他物理表补成本、毛利。
                     metric_facts, metric_debug = enrich_metrics(
                         related_inner_lines,
-                        main_inner_lines,
+                        main_tables,
                         main_facts,
                         context["required_metrics"],
                     )
                     _dbg_section("metric_enrichment")
                     _dbg(json.dumps(metric_debug, ensure_ascii=False))
+                    _dbg(f"metric_fact_count={len(metric_facts)}")
 
                     # 5. 格式化最终入库字段。
                     result_data = format_records(main_facts, metric_facts)
+                    _dbg(f"formatted_record_count={len(result_data)}")
                     if not result_data:
                         reason_arr.append("主表抽取为空")
-                    target_items = [main_inner_lines] if main_inner_lines else []
-                    source_pages = []
-                    if main_inner_lines and main_inner_lines[0].get("page_number") is not None:
-                        source_pages.append(main_inner_lines[0]["page_number"])
+                    target_items = main_tables if main_tables else ([main_inner_lines] if main_inner_lines else [])
+                    source_pages = sorted({
+                        table.get("page_number")
+                        for table in main_tables
+                        if table.get("page_number") is not None
+                    })
                     selected_physical_table = next(
                         (
-                            line for line in main_inner_lines or ()
-                            if line.get("is_table") and line.get("table")
+                            table for table in main_tables or ()
+                            if table.get("is_table") and table.get("table")
                         ),
                         None,
                     )
-                    selected_table = ""
+                    selected_table = selected_physical_table.get("id", "") if selected_physical_table else ""
                     physical_index = 0
                     for inner_lines in related_inner_lines:
                         for table in inner_lines:
@@ -485,15 +606,13 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                                 continue
                             table_id = f"p{table.get('page_number', 'x')}:{physical_index}"
                             physical_index += 1
-                            if table is selected_physical_table:
-                                selected_table = table_id
                             if table_id in metric_debug.get("source_tables", []) and table.get("page_number") not in source_pages:
                                 source_pages.append(table.get("page_number"))
                     # 合计验证结果：product_in_columns 提取时校验非合计行之和是否等于合计
                     total_validated = True
-                    for line in (main_inner_lines or ()):
-                        if line.get("is_table") and "total_validated" in line:
-                            total_validated = line["total_validated"]
+                    for table in (main_tables or ()):
+                        if table.get("is_table") and "total_validated" in table:
+                            total_validated = table["total_validated"]
                             break
                     debug_meta = {
                         "selected_count": len(target_items) + len(metric_debug.get("source_tables", [])),
@@ -506,6 +625,19 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                         "selection_debug": {"related_inner_lines_count": len(related_inner_lines)},
                         "extraction_debug": {"fact_count": len(main_facts)},
                         "metric_debug": metric_debug,
+                        "ai_debug": ai_debug,
+                        "main_table_debug": [
+                            {
+                                "table_id": table.get("id"),
+                                "page_number": table.get("page_number"),
+                                "classification": table.get("classification"),
+                                "table_shape": (
+                                    table.get("classifier_debug") or {}
+                                ).get("table_shape"),
+                                "assembly_debug": table.get("assembly_debug"),
+                            }
+                            for table in main_tables
+                        ],
                     }
 
                     _dbg(f"reason_arr={reason_arr} debug_meta={debug_meta}")
@@ -721,8 +853,8 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202502211643369388"
-    pdf_path = os.path.join(root, "pdf", f"{code}.pdf")
+    code = "AN202503281648691685"
+    pdf_path = os.path.join(root, "pdf_json", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
         "debug_enabled": True,

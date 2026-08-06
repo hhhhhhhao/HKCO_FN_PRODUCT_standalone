@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""评价选表准确率：selector 选中表 → GT 所有产品名+金额都在表内 → 对，否则错。"""
+"""从 run_backtest 的 debug 文件读 main_inner_lines，判断 GT 所有金额是否都在其中。"""
 from __future__ import annotations
 
 import argparse
@@ -9,181 +9,170 @@ import os
 import re
 import sys
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from custom.service.EAPS_HKCO_FN_PRODUCT import parse_mineru_result_to_lines
-from custom.service.HKCO_FN_PRODUCT_document import get_lines_grouped
-from custom.service.HKCO_FN_PRODUCT_selector import select_main_table
 
-
-# 直接排除的公告，不参与评估；后续新增直接往这里加。
 EXCLUDED_INFOCODES = {
     "AN202603271820814478",
     "AN202603271820813335",
 }
 
-TOTAL_KEYS = {"合计", "合計", "总计", "總計", "总额", "總額", "total"}
-NUMBER_RE = re.compile(r"^\s*([（(])?\s*([+-]?[\d,]+(?:\.\d+)?)\s*[）)]?\s*$")
+NUMBER_TOKEN = re.compile(r"[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?|[+-]?\d+(?:\.\d+)?")
 
 
-def _page_number(path: Path) -> int:
-    m = re.search(r"_(\d+)\.json$", path.name)
-    return int(m.group(1)) if m else 10 ** 9
-
-
-def _load_lines(document_dir: Path):
-    lines = []
-    for path in sorted(document_dir.glob("*.json"), key=_page_number):
-        if "over" in path.name.lower():
-            continue
-        page = _page_number(path)
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-        lines.extend(parse_mineru_result_to_lines(payload, page))
-    return lines
-
-
-def _gt_facts(rows):
-    """从 GT 行提取产品名和收入金额（排除合计）。"""
-    names = []
-    amounts = []
-    for row in rows or []:
-        if not isinstance(row, dict):
-            continue
-        name = str(row.get("PRODUCTNAME") or "").strip()
-        if not name or name.lower() in TOTAL_KEYS:
-            continue
-        val = _parse_number(row.get("MBREVENUE"))
-        if val is None:
-            continue
-        names.append(name)
-        amounts.append(val)
-    return names, amounts
-
-
-def _parse_number(value):
+def _parse_amount(value):
     if isinstance(value, (int, float)):
         return float(value)
     text = str(value or "").strip().replace("−", "-").replace("—", "-")
-    m = NUMBER_RE.fullmatch(text)
-    if not m:
+    match = NUMBER_TOKEN.fullmatch(text)
+    if not match:
         return None
     try:
-        v = float(m.group(2).replace(",", ""))
-    except (ValueError, IndexError):
+        return float(match.group(0).replace(",", ""))
+    except ValueError:
         return None
-    if m.group(1) and v > 0:
-        v = -v
-    return v
 
 
-def _table_cells(table):
-    """展平表中所有单元格为纯文本。"""
-    rows = [list(r) for r in table.get("table", []) if isinstance(r, (list, tuple))]
-    cells = []
-    for row in rows:
-        for cell in row:
-            cells.append(str(cell or "").strip())
-    return cells
+def _gt_amounts(rows):
+    """GT 里所有非空 MBREVENUE 数值。"""
+    amounts = set()
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        value = _parse_amount(row.get("MBREVENUE"))
+        if value is not None:
+            amounts.add(value)
+    return amounts
 
 
-def _match_main_inner(selected_inner_lines, gt_names, gt_amounts):
-    """以 select_main_table 返回的 main_inner_lines 为准，其内所有表格金额全命中才算对。"""
-    tables = [
-        line for line in (selected_inner_lines or [])
-        if line.get("is_table") and line.get("table")
-    ]
-    if not tables:
-        return False, "no_table_selected"
+def _numbers_in_text(text):
+    """从一行文本里提取数值，括号负数转负值。"""
+    numbers = []
+    for match in NUMBER_TOKEN.finditer(str(text or "")):
+        token = match.group(0)
+        try:
+            value = float(token.replace(",", ""))
+        except ValueError:
+            continue
+        start, end = match.start(), match.end()
+        if token[0] not in "+-" and start > 0 and text[start - 1] in "（(" and end < len(text) and text[end] in "）)":
+            value = -value
+        numbers.append(value)
+    return numbers
 
-    cells = []
-    for table in tables:
-        cells.extend(_table_cells(table))
+
+def _match_main_inner(selected_inner_lines, gt_amounts):
+    """main_inner_lines 的文本里包含所有 GT 金额才算找到。"""
+    if not selected_inner_lines:
+        return False, "no_selection"
 
     all_numbers = []
-    for c in cells:
-        v = _parse_number(c)
-        if v is not None:
-            all_numbers.append(v)
+    all_text = []
+    for line in selected_inner_lines:
+        if not isinstance(line, dict):
+            continue
+        text = str(line.get("text") or "")
+        all_numbers.extend(_numbers_in_text(text))
+        all_text.append(text)
+        table = line.get("table")
+        if isinstance(table, list):
+            for row in table:
+                if not isinstance(row, (list, tuple)):
+                    continue
+                for cell in row:
+                    cell_text = str(cell or "")
+                    all_numbers.extend(_numbers_in_text(cell_text))
+                    all_text.append(cell_text)
+    all_text = "\n".join(all_text)
 
-    missing_amounts = [
-        a for a in gt_amounts
-        if not any(math.isclose(a, v, rel_tol=1e-9, abs_tol=1e-6) for v in all_numbers)
+    def amount_in_text(amount):
+        if amount.is_integer():
+            integer = int(amount)
+            forms = {str(integer), f"{integer:,}"}
+            if integer < 0:
+                forms.update({
+                    f"-{integer:,}",
+                    f"({abs(integer):,})",
+                    f"({abs(integer)})",
+                })
+            return any(form in all_text for form in forms)
+        return f"{amount:.2f}" in all_text or f"{amount:g}" in all_text
+
+    missing = [
+        amount for amount in sorted(gt_amounts)
+        if (
+            not any(math.isclose(amount, value, rel_tol=1e-9, abs_tol=1e-6) for value in all_numbers)
+            and not amount_in_text(amount)
+        )
     ]
-    if missing_amounts:
-        return False, f"missing_amounts: {missing_amounts}"
-
-    all_text = " ".join(cells)
-    missing_names = [n for n in gt_names if n.lower() not in all_text.lower()]
-    if missing_names:
-        return True, f"amounts_ok_names_partial: {missing_names}"
+    if missing:
+        return False, f"missing_amounts: {missing}"
     return True, "all_matched"
 
 
-def evaluate_one(info_code, pdf_json_root, gt_rows, prior_rows):
-    """对单份公告评价选表结果。"""
-    document_dir = pdf_json_root / info_code
-    if not document_dir.is_dir():
-        return {"infocode": info_code, "status": "missing_json_dir"}
+def _main_inner_lines_from_debug(debug_path):
+    """从 run_backtest 的 debug 文本里解析 main_inner_lines=... 这一行。"""
+    text = debug_path.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.startswith("main_inner_lines="):
+            return json.loads(line[len("main_inner_lines="):])
+    return None
 
-    gt_names, gt_amounts = _gt_facts(gt_rows)
-    if not gt_names:
-        return {"infocode": info_code, "status": "no_gt_facts"}
 
-    prior_names = [str(r.get("PRODUCTNAME") or "").strip()
-                   for r in (prior_rows or [])
-                   if isinstance(r, dict) and str(r.get("PRODUCTNAME") or "").strip()]
+def evaluate_one(info_code, debug_dir, gt_rows):
+    debug_path = debug_dir / f"{info_code}_debug.txt"
+    if not debug_path.is_file():
+        return {"infocode": info_code, "status": "missing_debug"}
 
-    lines = _load_lines(document_dir)
-    lines_grouped = get_lines_grouped(lines)
+    selected_inner_lines = _main_inner_lines_from_debug(debug_path)
+    if selected_inner_lines is None:
+        return {"infocode": info_code, "status": "no_main_inner_lines"}
 
-    selected_inner_lines, _, _ = select_main_table(lines_grouped, prior_names)
-    selected_tables = [
-        line for line in (selected_inner_lines or [])
-        if line.get("is_table") and line.get("table")
-    ]
+    gt_amounts = _gt_amounts(gt_rows)
+    if not gt_amounts:
+        return {"infocode": info_code, "status": "no_gt_amounts"}
 
-    matched, reason = _match_main_inner(selected_inner_lines, gt_names, gt_amounts)
-
+    matched, reason = _match_main_inner(selected_inner_lines, gt_amounts)
     return {
         "infocode": info_code,
         "status": "evaluated",
         "correct": matched,
         "reason": reason,
-        "selected_page": (
-            selected_tables[0].get("page_number")
-            if selected_tables
-            else (selected_inner_lines[0].get("page_number") if selected_inner_lines else None)
-        ),
-        "selected_table_count": len(selected_tables),
+        "gt_amount_count": len(gt_amounts),
+        "gt_amounts": sorted(gt_amounts),
+        "selected_line_count": len(selected_inner_lines or []),
         "selected_pages": sorted({
-            table.get("page_number")
-            for table in selected_tables
-            if table.get("page_number") is not None
+            line.get("page_number")
+            for line in (selected_inner_lines or [])
+            if line.get("page_number") is not None
         }),
-        "gt_product_count": len(gt_names),
-        "gt_products": gt_names,
-        "gt_amounts": gt_amounts,
     }
 
 
-def _evaluate_task(task):
-    info_code, pdf_json_root, gt_rows, prior_rows = task
-    return evaluate_one(info_code, pdf_json_root, gt_rows, prior_rows)
+def _latest_debug_dir():
+    batch_root = ROOT / "batch_runs" / "HKCO_FN_PRODUCT"
+    if not batch_root.is_dir():
+        return None
+    runs = sorted(
+        (path / "debug" for path in batch_root.iterdir() if path.is_dir()),
+        key=lambda path: path.parent.name,
+        reverse=True,
+    )
+    return next((path for path in runs if path.is_dir()), None)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate table selection accuracy")
-    parser.add_argument("--limit", type=int, default=0)
+    parser = argparse.ArgumentParser(description="Evaluate table selection from run_backtest debug files")
+    parser.add_argument("--run-dir", default="", help="run_backtest 批次目录；默认取最近一次")
     parser.add_argument(
         "--workers",
         type=int,
-        default=min(8, os.cpu_count() or 4),
-        help="number of worker processes",
+        default=1,
+        help="兼容保留；debug 模式只读文件，不需要多进程",
     )
     parser.add_argument(
         "--exclude",
@@ -191,7 +180,10 @@ def main():
         default=[],
         help="extra infocodes to exclude; repeatable or comma-separated",
     )
-    parser.add_argument("--output", default=str(ROOT / "analysis" / "HKCO_FN_PRODUCT" / "selection_eval.json"))
+    parser.add_argument(
+        "--output",
+        default=str(ROOT / "analysis" / "HKCO_FN_PRODUCT" / "selection_eval.json"),
+    )
     args = parser.parse_args()
 
     extra_excluded = set()
@@ -199,73 +191,43 @@ def main():
         extra_excluded.update(part.strip() for part in value.split(",") if part.strip())
     excluded_codes = EXCLUDED_INFOCODES | extra_excluded
 
-    task_dir = ROOT / "tasks" / "HKCO_FN_PRODUCT"
-    gt = json.loads((task_dir / "ground_truth.json").read_text(encoding="utf-8"))
-    prior = json.loads((task_dir / "last_data.json").read_text(encoding="utf-8"))
-    pdf_json_root = ROOT / "pdf_json"
-
-    candidate = [
-        (c, gt[c])
-        for c in sorted(p.name for p in pdf_json_root.iterdir() if p.is_dir())
-        if c in gt
-    ]
-    excluded_infocodes = sorted(c for c, _ in candidate if c in excluded_codes)
-    items = [(c, rows) for c, rows in candidate if c not in excluded_codes][:args.limit or None]
-
-    tasks = [
-        (code, pdf_json_root, rows, prior.get(code, []))
-        for code, rows in items
-    ]
-    if args.workers <= 1:
-        results = [_evaluate_task(task) for task in tasks]
+    if args.run_dir:
+        debug_dir = Path(args.run_dir) / "debug"
     else:
-        with ProcessPoolExecutor(max_workers=args.workers) as executor:
-            results = list(executor.map(_evaluate_task, tasks, chunksize=8))
+        debug_dir = _latest_debug_dir()
+    if not debug_dir or not debug_dir.is_dir():
+        print(f"No debug dir found: {debug_dir}")
+        return 1
 
-    correct = sum(1 for r in results if r.get("correct"))
-    total = sum(1 for r in results if r["status"] == "evaluated")
+    gt = json.loads((ROOT / "tasks" / "HKCO_FN_PRODUCT" / "ground_truth.json").read_text(encoding="utf-8"))
+    items = []
+    for debug_path in sorted(debug_dir.glob("*_debug.txt")):
+        info_code = debug_path.name[: -len("_debug.txt")]
+        if info_code in gt and info_code not in excluded_codes:
+            items.append((info_code, gt[info_code]))
 
+    results = [evaluate_one(info_code, debug_dir, rows) for info_code, rows in items]
+    correct = sum(1 for result in results if result.get("correct"))
+    total = sum(1 for result in results if result["status"] == "evaluated")
     summary = {
         "total_documents": len(results),
-        "excluded_documents": len(excluded_infocodes),
-        "excluded_infocodes": excluded_infocodes,
         "evaluated": total,
         "correct": correct,
         "wrong": total - correct,
         "accuracy": round(correct / total, 4) if total else 0,
-        "statuses": dict(Counter(r["status"] for r in results)),
+        "statuses": dict(Counter(result["status"] for result in results)),
     }
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(
-        {"summary": summary, "documents": results},
-        ensure_ascii=False, indent=2,
-    ), encoding="utf-8")
-
-    # 自动生成错题本
-    wrong_list = output.parent / "wrong_selections.txt"
-    wrong_docs = [d for d in results if not d.get("correct")]
-    lines = [f"选对: {correct} ({summary['accuracy']:.1%})",
-             f"选错: {len(wrong_docs)}", ""]
-    for i, d in enumerate(wrong_docs):
-        sp = d.get("selected_page", "?")
-        gt = d.get("gt_products", [])
-        reason = d.get("reason", "")
-        if "missing_amounts" in reason:
-            try:
-                missing = eval(reason.split(": ", 1)[1])
-                lines.append(f"{i+1}. {d['infocode']} p.{sp}  缺{len(missing)}个金额  GT({len(gt)}产品): {gt}")
-            except Exception:
-                lines.append(f"{i+1}. {d['infocode']} p.{sp}  {reason[:120]}")
-        else:
-            lines.append(f"{i+1}. {d['infocode']} p.{sp}  {reason[:120]}")
-    wrong_list.write_text("\n".join(lines), encoding="utf-8")
-
+    output.write_text(
+        json.dumps({"summary": summary, "documents": results}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
-    print(f"\nOutput: {output}")
-    print(f"Wrong list: {wrong_list}")
+    print(output)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

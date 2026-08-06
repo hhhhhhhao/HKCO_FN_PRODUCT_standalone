@@ -8,12 +8,20 @@ lines_grouped 中的每个 inner_lines 是一个完整章节单元，标题、�
 正式选表不使用 GT、当前期产品、GT 金额、页码排序或物理表 ID。
 """
 import re
+from custom.extend.pdfplumber_extend_object import ExtendPlumber
 from custom.service.HKCO_FN_PRODUCT_document import match_patterns
 from custom.service.HKCO_FN_PRODUCT_utils import (
+    contains_chinese,
+    flatten_arr,
     fullwidth_to_halfwidth,
     historical_product_last_name_matches,
+    is_number,
 )
-
+from custom.utils.pdfplumber_extend_util import (
+    clear_rect_edges,
+    generate_extend_plumber_page,
+)
+from collections import defaultdict
 
 NUMBER = re.compile(r"^\s*\(?-?\d[\d,]*(?:\.\d+)?\)?\s*$")
 REVENUE_KEYWORDS = ["收入", "收益", "營業額", "营业额", "銷售額", "销售额", "revenue", "turnover", "sales"]
@@ -46,22 +54,46 @@ _TABLE_CLASS_PATTERNS = [
     [(r"損益表|损益表|虧損表|亏损表|損益賬", 0)],
 ]
 
-def _rows(table):
-    """读取原始 table line 中的二维表格。"""
-    return [list(row) for row in table.get("table", []) if isinstance(row, (list, tuple))]
 
+def get_inner_words(pdf, inner_lines):
+    """取 inner_lines 跨页范围内所有 words；章节跨页时逐页裁剪。"""
+    if not inner_lines:
+        return [], []
 
-def _has_numbers(tables):
-    """判断章节中的表格是否至少包含一个数字单元格。"""
-    for table in tables:
-        for row in _rows(table):
-            for cell in row:
-                if NUMBER.match(cell):
-                    return True
+    lines_by_page = defaultdict(list)
+    for line in inner_lines:
+        page_number = line.get("page_number")
+        if page_number is not None:
+            lines_by_page[page_number].append(line)
+
+    words = []
+    for page_number, page_lines in sorted(lines_by_page.items()):
+        if page_number < 1 or page_number > len(pdf.pages):
+            continue
+        page = pdf.pages[page_number - 1]
+
+        crop_x0 = min(line["x0"] for line in page_lines)
+        crop_y0 = min(line["top"] for line in page_lines)
+        crop_x1 = max(line["x1"] for line in page_lines)
+        crop_y1 = max(line["bottom"] for line in page_lines)
+
+        if crop_y1 <= crop_y0 or crop_x1 <= crop_x0:
+            continue
+
+        crop_table = page.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+        words.extend(crop_table.extract_words())
+    return words, []
+
+def is_table(inner_words_flatten):
+    number_sum = 0
+    for word in inner_words_flatten:
+        if len(word['text'])> 3 and is_number(word['text']) and not contains_chinese(word['text']):
+            number_sum = number_sum + 1
+    if number_sum > 3:
+        return True
     return False
 
-
-def select_main_table(lines_grouped, prior_names=()):
+def select_main_table(pdf_path, lines_grouped, prior_names=()):
     """按章节顺序选择唯一主章节，并返回基础过滤后的相关章节。
 
     返回 (selected_inner_lines, related_inner_lines, from_full_history)
@@ -85,44 +117,45 @@ def select_main_table(lines_grouped, prior_names=()):
         return any(inner is fh for fh in full_history) or any(inner is fh for fh in full_history_arr)
 
     # 每个 inner_lines 只解析一次；标题、正文、页码和物理表始终属于同一组。
-    for inner_lines in lines_grouped:
-        first_line = inner_lines[0]["text"]
-        inner_lines_text = "/".join(line["text"] for line in inner_lines)
+    with ExtendPlumber.open(pdf_path) as pdf:
+        for inner_lines in lines_grouped:
+            first_line = inner_lines[0]["text"]
+            inner_lines_text = "/".join(line["text"] for line in inner_lines)
+            inner_words = get_inner_words(pdf,inner_lines)
+            inner_words_flatten = flatten_arr(inner_words)
 
-        if '6.營業收入/營業成本(續)' == first_line:
-            print
+            if '分部收入及業績' == first_line:
+                print
 
-        # 严格标题排除只检查章节第一行
-        exlcude_words = (
-            "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债",
-            "員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量",
-            "賬齡", "账龄","現金流量", "现金流量",'綜合全面收益表','財務摘要','财务摘要',
-            '財務回顧','财务回顾','主要客户的資料',
-        )
-        if any( keyword in first_line for keyword in exlcude_words ):
-            continue
+            # 严格标题排除只检查章节第一行
+            exlcude_words = (
+                "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债",
+                "員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量",
+                "賬齡", "账龄","現金流量", "现金流量",'綜合全面收益表','財務摘要','财务摘要',
+                '財務回顧','财务回顾','主要客户的資料',
+            )
+            if any( keyword in first_line for keyword in exlcude_words ):
+                continue
 
-        # 基础候选必须含有非空，并且至少存在一个数字单元格。
-        tables = [line for line in inner_lines if line.get("is_table") and _rows(line)]
-        if not tables:
-            continue
+            # 地区/区域拆分排除 — 表格内容出现地理维度拆分关键词则跳过
+            if match_patterns(first_line, _REGION_SPLIT_PATTERNS):
+                continue
 
-        # 地区/区域拆分排除 — 表格内容出现地理维度拆分关键词则跳过
-        if match_patterns(first_line, _REGION_SPLIT_PATTERNS):
-            continue
-        if not _has_numbers(tables):
-            continue
+            if not is_table(inner_words_flatten):
+                continue
 
-        related_inner_lines.append(inner_lines)
+            
 
-        # 历史产品名匹配
-        # 全部上期产品命中才进入 full_history
-        matched_count, matched_count_arr = historical_product_last_name_matches(prior_names, tables)
-        history_groups[matched_count].append(inner_lines)
-        if prior_names and matched_count == len(prior_names):
-            full_history.append(inner_lines)
-        if prior_names and matched_count_arr == len(prior_names):
-            full_history_arr.append(inner_lines)
+            related_inner_lines.append(inner_lines)
+
+            # 历史产品名匹配
+            # 全部上期产品命中才进入 full_history
+            matched_count, matched_count_arr = historical_product_last_name_matches(prior_names, inner_words_flatten)
+            history_groups[matched_count].append(inner_lines)
+            if prior_names and matched_count == len(prior_names):
+                full_history.append(inner_lines)
+            if prior_names and matched_count_arr == len(prior_names):
+                full_history_arr.append(inner_lines)
 
     if not related_inner_lines:
         return None, [], False

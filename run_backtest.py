@@ -104,7 +104,7 @@ def load_schema(task_dir: Path) -> Dict[str, Any]:
         raise ValueError(f"schema.json 缺少 pdf_dir: {path}")
     # Paths in schema.json are resolved relative to the project root.  This
     # keeps the same configuration usable on macOS and Windows.
-    for key in ("pdf_dir", "cache_dir", "mineru_json_base_dir"):
+    for key in ("pdf_dir", "cache_dir"):
         value = str(schema.get(key) or "").strip()
         if value:
             candidate = Path(os.path.expandvars(os.path.expanduser(value)))
@@ -226,29 +226,12 @@ def local_pdf_href(pdf_path: str) -> str:
     return p.resolve().as_uri()
 
 
-def has_mineru_json(infocode: str, schema: Mapping[str, Any]) -> bool:
-    """本地只要有 MinerU 页 JSON 即可抽（可不依赖 PDF）。"""
-    base = str(schema.get("mineru_json_base_dir") or "").strip()
-    if not base:
-        return False
-    jd = Path(base) / infocode
-    if not jd.is_dir():
-        return False
-    for p in jd.iterdir():
-        if p.suffix.lower() == ".json" and "over" not in p.name.lower():
-            return True
-    return False
-
-
 def resolve_pdf_path(infocode: str, schema: Mapping[str, Any]) -> str:
     pdf_dir = str(schema["pdf_dir"]).strip()
     candidate = Path(pdf_dir) / f"{infocode}.pdf"
     if candidate.exists():
         return str(candidate)
-    # 无 PDF 但有 JSON：仍返回约定路径，抽取侧用 JSON 建 lines
-    if has_mineru_json(infocode, schema):
-        return str(candidate)
-    raise FileNotFoundError(f"找不到 PDF 且无 MinerU JSON: {candidate}")
+    raise FileNotFoundError(f"找不到 PDF: {candidate}")
 
 
 def select_infocodes(gt: Mapping[str, Any], infocode: str = "") -> List[str]:
@@ -265,15 +248,12 @@ def select_infocodes(gt: Mapping[str, Any], infocode: str = "") -> List[str]:
 def find_jobs(infocodes: Sequence[str], schema: Mapping[str, Any]) -> List[Dict[str, str]]:
     jobs = []
     missing = []
-    json_only = []
     for code in infocodes:
         try:
             pdf_path = resolve_pdf_path(code, schema)
         except FileNotFoundError:
             missing.append(code)
             continue
-        if not Path(pdf_path).exists():
-            json_only.append(code)
         jobs.append(
             {
                 "infocode": code,
@@ -281,12 +261,10 @@ def find_jobs(infocodes: Sequence[str], schema: Mapping[str, Any]) -> List[Dict[
                 "pdf_url": local_pdf_href(pdf_path),
             }
         )
-    if json_only:
-        print(f"info: 无 PDF 但有 MinerU JSON，仍纳入: {len(json_only)} 个")
     if missing:
         preview = ", ".join(missing[:5])
         more = f" 等{len(missing)}个" if len(missing) > 5 else ""
-        print(f"warning: 本地未找到 PDF 且无 JSON，已跳过: {preview}{more}")
+        print(f"warning: 本地未找到 PDF，已跳过: {preview}{more}")
     return jobs
 
 
@@ -1647,7 +1625,6 @@ def run_backtest(
     infocode: str = "",
     workers: int = DEFAULT_WORKERS,
     pdf_dir: str = "",
-    mineru_json_base_dir: str = "",
     cache_dir: str = "",
 ) -> Dict[str, Any]:
     task_dir = TASKS_DIR / task
@@ -1658,7 +1635,6 @@ def run_backtest(
     # Command-line paths take precedence over schema defaults.
     for key, value in (
         ("pdf_dir", pdf_dir),
-        ("mineru_json_base_dir", mineru_json_base_dir),
         ("cache_dir", cache_dir),
     ):
         if value:
@@ -1687,7 +1663,6 @@ def run_backtest(
         "cache_dir": cache_dir,
         "force_reparse": False,
         "pdf_dir": schema.get("pdf_dir", ""),
-        "mineru_json_base_dir": schema.get("mineru_json_base_dir", ""),
         "run_dir": str(run_dir),
         "debug_dir": str(debug_dir),
         "debug_enabled": bool(schema.get("debug_enabled", True)),
@@ -1875,11 +1850,6 @@ def main() -> int:
     parser.add_argument("--task", required=True, help="任务名，如 HKCO_FN_PRODUCT")
     parser.add_argument("--infocode", default="", help="只跑 / 只采纳某一个公告")
     parser.add_argument("--pdf-dir", default="", help="PDF 目录（覆盖 schema.json）")
-    parser.add_argument(
-        "--mineru-dir",
-        default="",
-        help="MinerU JSON 根目录（覆盖 schema.json）",
-    )
     parser.add_argument("--cache-dir", default="", help="缓存目录（覆盖 schema.json）")
     parser.add_argument(
         "--workers",
@@ -1923,7 +1893,6 @@ def main() -> int:
         infocode=args.infocode,
         workers=max(1, args.workers),
         pdf_dir=args.pdf_dir,
-        mineru_json_base_dir=args.mineru_dir,
         cache_dir=args.cache_dir,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))

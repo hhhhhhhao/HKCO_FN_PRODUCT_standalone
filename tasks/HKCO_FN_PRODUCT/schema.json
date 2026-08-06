@@ -21,6 +21,5 @@
     "PRODUCTNAME"
   ],
   "pdf_dir": "pdf",
-  "cache_dir": "parse_cache",
-  "mineru_json_base_dir": "pdf_json"
+  "cache_dir": "parse_cache"
 }

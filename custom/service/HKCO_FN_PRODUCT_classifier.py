@@ -46,6 +46,7 @@ classify_main_inner(main_inner_lines)：
 import re
 
 from custom.service.HKCO_FN_PRODUCT_utils import fullwidth_to_halfwidth, last_name_matches
+from custom.service.HKCO_FN_PRODUCT_table import assemble_tables
 
 
 def format_number(text):
@@ -192,25 +193,60 @@ def get_title_classification(title):
     return "unknown"
 
 
-def classify_main_inner(main_inner_lines, prior_names):
-    first_line = main_inner_lines[0]['text']
-    title_classification = get_title_classification(first_line)
+def classify_main_inner(main_inner_lines, prior_names, pdf_path=None):
+    """组装物理表并分类；无法可靠分类的表标为 ai_table。"""
+    if not main_inner_lines:
+        return []
+    if not pdf_path:
+        return []
 
-    for inner_line in main_inner_lines:
-        if not inner_line.get("is_table") or not inner_line.get("table"):
-            continue
-        table_classification = classify_table(inner_line["table"], prior_names)
+    title_classification = get_title_classification(main_inner_lines[0]["text"])
+    tables = assemble_tables(pdf_path, main_inner_lines)
+    assembled_count = len(tables)
+    if not tables:
+        page_number = main_inner_lines[0].get("page_number")
+        tables = [{
+            "id": f"p{page_number}:0",
+            "is_table": True,
+            "table": [],
+            "page_number": page_number,
+            "lines": main_inner_lines,
+            "bbox": None,
+            "text": " ".join(
+                str(line.get("text") or "") for line in main_inner_lines
+            ),
+            "classification": "ai_table",
+            "assembly_debug": {
+                "block_row_count": len(main_inner_lines),
+                "word_count": 0,
+                "numeric_word_count": 0,
+                "grid_shape": [0, 0],
+                "bbox": None,
+                "fallback": True,
+            },
+        }]
 
+    for table in tables:
+        rows = table.get("table") or []
         if title_classification == "profit_loss":
-            inner_line["classification"] = 'profit_loss'
-            continue
+            table["classification"] = "profit_loss"
+        else:
+            table_classification = classify_table(rows, prior_names)
+            table["classification"] = (
+                "ai_table"
+                if table_classification == "unsupported"
+                else table_classification
+            )
+        table["classifier_debug"] = {
+            "section_title": main_inner_lines[0]["text"][:120],
+            "title_classification": title_classification,
+            "prior_names_count": len(prior_names or ()),
+            "assembled_table_count": assembled_count,
+            "table_shape": [
+                len(rows),
+                max((len(row) for row in rows), default=0),
+            ],
+            "classification": table["classification"],
+        }
 
-        if table_classification == 'product_in_rows':
-            inner_line["classification"] = "product_in_rows"
-            continue
-
-        if table_classification == 'product_in_columns':
-            inner_line["classification"] = "product_in_columns"
-            continue
-
-    return main_inner_lines
+    return tables
