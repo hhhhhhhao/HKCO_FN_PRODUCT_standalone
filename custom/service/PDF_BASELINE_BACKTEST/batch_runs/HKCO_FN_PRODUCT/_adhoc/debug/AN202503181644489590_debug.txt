@@ -1,0 +1,40 @@
+infocode=AN202503181644489590
+debug_file=/Users/hao/Downloads/HKCO_FN_PRODUCT_standalone/custom/service/PDF_BASELINE_BACKTEST/batch_runs/HKCO_FN_PRODUCT/_adhoc/debug/AN202503181644489590_debug.txt
+[last_period] loaded from last_data.json rows=3
+[last_period] rows=3
+lines_count=543
+
+========================================================================
+sections
+========================================================================
+groups=10
+
+========================================================================
+main_table_selection
+========================================================================
+related_inner_lines=4 from_full_history=True
+selected_page_numbers=[13, 14]
+selected_line_count=37
+main_inner_lines=[{"page_number": 13, "text": "未經審計簡明綜合全面虧損表"}, {"page_number": 13, "text": "(除美國存託股╱普通股及每股美國存託股╱普通股數據外,所有金額均以千計)"}, {"page_number": 13, "text": "截至以下日期止三個月"}, {"page_number": 13, "text": "2023年2024年2024年2024年"}, {"page_number": 13, "text": "12月31日9月30日12月31日12月31日"}, {"page_number": 13, "text": "人民幣人民幣人民幣美元"}, {"page_number": 13, "text": "收入"}, {"page_number": 13, "text": "汽車銷售12,228,3148,795,01114,671,1282,009,936"}, {"page_number": 13, "text": "服務及其他銷售822,1161,306,6991,433,968196,453"}, {"page_number": 13, "text": "總收入13,050,43010,101,71016,105,0962,206,389"}, {"page_number": 13, "text": "銷售成本"}, {"page_number": 13, "text": "汽車銷售(11,732,955)(8,039,240)(13,200,594)(1,808,474)"}, {"page_number": 13, "text": "服務及其他銷售(508,003)(521,022)(579,725)(79,422)"}, {"page_number": 13, "text": "總銷售成本(12,240,958)(8,560,262)(13,780,319)(1,887,896)"}, {"page_number": 13, "text": "毛利809,4721,541,4482,324,777318,493"}, {"page_number": 13, "text": "經營開支"}, {"page_number": 13, "text": "研發開支(1,307,745)(1,633,071)(2,006,463)(274,884)"}, {"page_number": 13, "text": "銷售、一般及行政開支(1,936,503)(1,633,196)(2,275,400)(311,729)"}, {"page_number": 13, "text": "經營開支總額(3,244,248)(3,266,267)(4,281,863)(586,613)"}, {"page_number": 13, "text": "其他收入,淨額352,39139,908196,43626,912"}, {"page_number": 13, "text": "與或有對價有關的衍生負債的"}, {"page_number": 13, "text": "公允價值收益(虧損)29,339(162,185)204,63728,035"}, {"page_number": 13, "text": "經營虧損(2,053,046)(1,847,096)(1,556,013)(213,173)"}, {"page_number": 13, "text": "利息收入342,780318,021301,17741,261"}, {"page_number": 13, "text": "利息開支(73,225)(83,461)(94,001)(12,878)"}, {"page_number": 13, "text": "衍生負債的公允價值收益561,415———"}, {"page_number": 13, "text": "長期投資的投資(虧損)收益(185,318)(216,768)10,0691,379"}, {"page_number": 13, "text": "外幣交易的匯兌收益(虧損)46,36247,565(104,994)(14,384)"}, {"page_number": 13, "text": "其他非經營性收入,淨額27,3646,44494,09312,891"}, {"page_number": 13, "text": "除所得稅(開支)收益和權益法"}, {"page_number": 13, "text": "核算的投資收益前虧損(1,333,668)(1,775,295)(1,349,669)(184,904)"}, {"page_number": 13, "text": "所得稅(開支)收益(21,754)(7,025)44,0926,041"}, {"page_number": 13, "text": "權益法核算的投資收益7,807(25,400)(24,396)(3,342)"}, {"page_number": 13, "text": "淨虧損(1,347,615)(1,807,720)(1,329,973)(182,205)"}, {"page_number": 13, "text": "XPengInc.普通股股東"}, {"page_number": 13, "text": "應佔淨虧損(1,347,615)(1,807,720)(1,329,973)(182,205)"}, {"page_number": 14, "text": "XPENGINC."}]
+
+========================================================================
+main_table_classification
+========================================================================
+["profit_loss"]
+assembled_table_count=1
+{"table_id": "p13:0", "page_number": 13, "classification": "profit_loss", "assembly_debug": {"block_row_count": 35, "word_count": 141, "numeric_word_count": 93, "grid_shape": [35, 5], "bbox": [28.28, 66.78, 565.55, 778.99]}, "classifier_debug": {"section_title": "未經審計簡明綜合全面虧損表", "title_classification": "profit_loss", "prior_names_count": 2, "assembled_table_count": 1, "table_shape": [35, 5], "classification": "profit_loss"}}
+rule_table_ids=['p13:0']
+ai_table_ids=[]
+
+========================================================================
+main_table_extraction
+========================================================================
+{"classification": "profit_loss", "rule_fact_count": 6, "ai_fact_count": 0, "total_fact_count": 6, "ai_debug": {"ai_table_count": 0, "ai_called_count": 0, "ai_failed_count": 0, "ai_failed_ids": [], "ai_fact_count": 0, "table_debug": []}}
+
+========================================================================
+metric_enrichment
+========================================================================
+{"stage": "metric_enrichment_finished", "source_tables": [], "fact_count": 0}
+metric_fact_count=0
+formatted_record_count=6
+reason_arr=[] debug_meta={'selected_count': 1, 'source_pages': [13], 'from_full_history': True, 'total_validated': True, 'selected_table': 'p13:0', 'classification': 'profit_loss', 'classifier': ['profit_loss'], 'selection_debug': {'related_inner_lines_count': 4}, 'extraction_debug': {'fact_count': 6}, 'metric_debug': {'stage': 'metric_enrichment_finished', 'source_tables': [], 'fact_count': 0}, 'ai_debug': {'ai_table_count': 0, 'ai_called_count': 0, 'ai_failed_count': 0, 'ai_failed_ids': [], 'ai_fact_count': 0, 'table_debug': []}, 'main_table_debug': [{'table_id': 'p13:0', 'page_number': 13, 'classification': 'profit_loss', 'table_shape': [35, 5], 'assembly_debug': {'block_row_count': 35, 'word_count': 141, 'numeric_word_count': 93, 'grid_shape': [35, 5], 'bbox': [28.28, 66.78, 565.55, 778.99]}}]}

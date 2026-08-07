@@ -43,18 +43,21 @@ _REGION_SPLIT_PATTERNS = [
 # 每一行是一个正则优先级（(pattern, group) 元组），从上到下依次匹配章节标题。
 _TABLE_CLASS_PATTERNS = [
     [(r"分部收入及業績", 0)],
-    [(r"經營分部|经营分部|收入及分部|分部資料|收益及業績|分部收入|營業額及業績|分部資料|分拆收入|分類.*資料", 0)],
+    [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下", 0)],
     [(r"外部客戶收入|外部客户收入", 0)],
     [
         (r"按.*收入.*業績", 0),
+        (r"按服務|按服务|按類別|按类别", 0),
         (r"產品收入|产品收入|服務收入|服务收入|收益、其他收入及收益|收入資料|收益資料|收益明細", 0),
-        (r"收入構成|收入构成|收入分拆|收入明細|收入明细|收益及分部|類別分析|类别分析|收益分類|收入分類|收益分类|收入分类|銷售貨品|销售货品|按產品|按产品|按主要產品|按主要产品|收入、其他收入", 0),
+        (r"收入構成|收入构成|收入分拆|收入明細|收入明细|收益及分部|類別分析|类别分析|收益分類|收入分類|收益分类|收入分类|銷售貨品|销售货品|按產品|按产品|按主要產品|按主要产品|按.*劃分|按.*划分|收入、其他收入", 0),
+        (r"收益分析|收入分析", 0),
         (r"^\d+\.收入$", 0),
         (r"^[\(|\（]*[、|\)|）|.|．|。|\)]*[一二三四五六七八九十0123456789①②③④⑤⑥⑦⑧⑨A-Da-d]+[、|\)|）|.||．|。|\)]*(收益|收入)$", 0),
     ],
     # [(r"收入|收益", 0)],
     [(r"收入、資本支出及實現價格", 0)],
     [(r"損益表|损益表|虧損表|亏损表|損益賬", 0)],
+    [(r"附註|附注", 0)],
     [(r"收益淨額", 0)],
 ]
 
@@ -68,10 +71,15 @@ def _words_cache_path(pdf_path):
 
 
 def _load_words_cache(pdf_path):
-    """读整页 extract_words 缓存；PDF 变化或缓存损坏时返回空。"""
+    """读整页 extract_words 缓存；PDF 变化或缓存损坏时返回空。
+
+    Returns (page_words, page_dims, page_count) — page_dims/page_count 可能为空。
+    page_words: {page_number: [word_dict, ...]}
+    page_dims:  {page_number: [width, height]}
+    """
     cache_path = _words_cache_path(pdf_path)
     if not cache_path.is_file():
-        return {}
+        return {}, {}, 0
     try:
         stat = os.stat(str(pdf_path))
         payload = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -81,21 +89,47 @@ def _load_words_cache(pdf_path):
             and payload.get("mtime_ns") == stat.st_mtime_ns
             and isinstance(payload.get("pages"), dict)
         ):
-            return {int(key): list(value) for key, value in payload["pages"].items()}
+            pages_raw = payload["pages"]
+            page_words = {}
+            page_dims = {}
+            for key, value in pages_raw.items():
+                page_num = int(key)
+                if isinstance(value, dict) and "words" in value:
+                    # 新格式：{width, height, words}
+                    page_words[page_num] = list(value["words"])
+                    page_dims[page_num] = [value["width"], value["height"]]
+                elif isinstance(value, list):
+                    # 旧格式（仅 words 列表，无尺寸）— 首次命中后会自动升级
+                    page_words[page_num] = list(value)
+            page_count = payload.get("page_count", 0)
+            return page_words, page_dims, page_count
     except Exception:
-        return {}
-    return {}
+        return {}, {}, 0
+    return {}, {}, 0
 
 
-def _save_words_cache(pdf_path, page_words):
+def _save_words_cache(pdf_path, page_words, page_dims=None, page_count=0):
     cache_path = _words_cache_path(pdf_path)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     stat = os.stat(str(pdf_path))
+    pages_payload = {}
+    for page_number, words in page_words.items():
+        dims = (page_dims or {}).get(page_number)
+        if dims:
+            pages_payload[str(page_number)] = {
+                "width": dims[0],
+                "height": dims[1],
+                "words": words,
+            }
+        else:
+            # 无尺寸时退化为旧格式列表，保证兼容
+            pages_payload[str(page_number)] = words
     payload = {
         "source": os.path.basename(str(pdf_path)),
         "size": stat.st_size,
         "mtime_ns": stat.st_mtime_ns,
-        "pages": {str(page_number): words for page_number, words in page_words.items()},
+        "page_count": page_count,
+        "pages": pages_payload,
     }
     tmp_path = cache_path.with_name(cache_path.name + ".tmp")
     tmp_path.write_text(
@@ -105,10 +139,15 @@ def _save_words_cache(pdf_path, page_words):
     os.replace(str(tmp_path), str(cache_path))
 
 
-def get_inner_words(pdf, page_words, inner_lines):
-    """按 inner_lines 的跨页范围取 words；每页 extract_words 只做一次并写缓存。"""
+def get_inner_words(pdf, page_words, inner_lines, page_dims=None, page_count=0):
+    """按 inner_lines 的跨页范围取 words；每页 extract_words 只做一次并写缓存。
+
+    当 page_dims/page_count 提供且所有页均已缓存时，不需要 pdf 对象；
+    否则通过 pdf.pages 补提取缺失页的 words 和尺寸。
+    返回 (words, missing_pages) — missing_pages 是需要补提取的页码集合。
+    """
     if not inner_lines:
-        return [], []
+        return [], set()
 
     lines_by_page = defaultdict(list)
     for line in inner_lines:
@@ -116,22 +155,40 @@ def get_inner_words(pdf, page_words, inner_lines):
         if page_number is not None:
             lines_by_page[page_number].append(line)
 
+    total_pages = page_count or (len(pdf.pages) if pdf else 0)
     words = []
+    missing_pages = set()
+
     for page_number, page_lines in sorted(lines_by_page.items()):
-        if page_number < 1 or page_number > len(pdf.pages):
+        if page_number < 1 or page_number > total_pages:
             continue
-        page = pdf.pages[page_number - 1]
+
+        # 获取页面尺寸：优先用缓存，否则从 pdf 对象取
+        dims = (page_dims or {}).get(page_number)
+        if dims:
+            page_w, page_h = dims[0], dims[1]
+        elif pdf is not None:
+            page = pdf.pages[page_number - 1]
+            page_w, page_h = page.width, page.height
+        else:
+            missing_pages.add(page_number)
+            continue
 
         crop_x0 = max(0.0, min(line["x0"] for line in page_lines))
         crop_y0 = max(0.0, min(line["top"] for line in page_lines))
-        crop_x1 = min(page.width, max(line["x1"] for line in page_lines))
-        crop_y1 = min(page.height, max(line["bottom"] for line in page_lines))
+        crop_x1 = min(page_w, max(line["x1"] for line in page_lines))
+        crop_y1 = min(page_h, max(line["bottom"] for line in page_lines))
 
         if crop_y1 <= crop_y0 or crop_x1 <= crop_x0:
             continue
 
         if page_number not in page_words:
-            page_words[page_number] = [dict(word) for word in page.extract_words()]
+            if pdf is not None:
+                page = pdf.pages[page_number - 1]
+                page_words[page_number] = [dict(word) for word in page.extract_words()]
+            else:
+                missing_pages.add(page_number)
+                continue
 
         words.extend(
             word
@@ -143,15 +200,21 @@ def get_inner_words(pdf, page_words, inner_lines):
                 and word["bottom"] <= crop_y1 + 1e-6
             )
         )
-    return words, []
+    return words, missing_pages
 
-def is_table(inner_words_flatten):
+def is_table(inner_words_flatten, inner_lines=None):
     number_sum = 0
     for word in inner_words_flatten:
         if len(word['text']) >= 3 and is_number(word['text']) and not contains_chinese(word['text']):
             number_sum = number_sum + 1
     if number_sum > 3:
         return True
+    # fallback: 附註等章节文字多但内嵌表格，words 提取不到足够数字
+    if inner_lines:
+        text = ' '.join(str(l.get('text') or '') for l in inner_lines)
+        amounts = re.findall(r'\d{1,3}(?:,\d{3})+|\d{5,}', text)
+        if len(amounts) >= 5:
+            return True
     return False
 
 def select_main_table(pdf_path, lines_grouped, prior_names=()):
@@ -178,13 +241,21 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
         return any(inner is fh for fh in full_history) or any(inner is fh for fh in full_history_arr)
 
     # 每个 inner_lines 只解析一次；标题、正文、页码和物理表始终属于同一组。
-    page_words = _load_words_cache(pdf_path)
-    with ExtendPlumber.open(pdf_path) as pdf:
+    page_words, page_dims, page_count = _load_words_cache(pdf_path)
+    _all_pages_cached = bool(page_dims and page_count and page_count > 0)
+
+    # 先尝试不带 PDF 跑一轮，收集缺失页；缓存完整则完全不需要打开 PDF。
+    _pdf = None
+    try:
+        if not _all_pages_cached:
+            _pdf = ExtendPlumber.open(pdf_path).__enter__()
+            page_count = len(_pdf.pages)
+
         for inner_lines in lines_grouped:
             first_line = inner_lines[0]["text"]
             inner_lines_text = "/".join(line["text"] for line in inner_lines)
 
-            if '下表載列二零二六財年的收益明細,連同二零二五財年的比較業績:' == first_line:
+            if '未經審計簡明綜合全面虧損表' == first_line:
                 print
 
             # 严格标题排除只检查章节第一行
@@ -192,9 +263,10 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债",
                 "員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量",
                 "賬齡", "账龄","現金流量", "现金流量",'綜合全面收益表','財務摘要','财务摘要',
-                '財務回顧','财务回顾','主要客户的資料','概不','比較數字','管理層','網絡','公佈','政府','股息','紅線',
+                '財務回顧','财务回顾','主要客户的資料','概不','比較數字','網絡','公佈','政府','股息','紅線',
                 '季度比較', # AN202502271643556315 40
                 '股本', # AN202602271820108796
+                '資產負債表', '资产负债表', '財務狀況表', '财务状况表',  # 资产负债表不含产品收入
             )
             if any( keyword in first_line for keyword in exlcude_words ):
                 continue
@@ -202,22 +274,43 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             include_words =  (
                 "收入", "收益", "分部", "資料", "經營", "業務", "產品", "服務",
                 "銷售", "分類", "客户合約", "明細", "分拆", "類別", "營業額",
-                "合同", "客户合同", "營收",'業績',
+                "合同", "客户合同", "營收", "業績",
+                "利潤", "利润", "營運", "营运", "虧損", "亏损", "虧損表", "损益表",
+                "利潤表", "利润表", "營運報表", "营运报表",
+                "附註", "附注",  # 产品收入表常在财务报表附注里
+                "管理層討論", "管理层讨论",  # 管理层讨论章节常有产品收入汇总
+                "劃分", "划分",  # 按產品劃分/按業務劃分等
             )
             if not any(keyword in first_line for keyword in include_words):
                 continue
 
-            inner_words = get_inner_words(pdf, page_words, inner_lines)
+            inner_words, missing_pages = get_inner_words(
+                _pdf, page_words, inner_lines, page_dims, page_count,
+            )
+            # 缓存完整时不会有缺失页；如有说明缓存过期需补打开 PDF
+            if missing_pages and _pdf is None:
+                _pdf = ExtendPlumber.open(pdf_path).__enter__()
+                page_count = len(_pdf.pages)
+                # 补全缺失页的尺寸
+                if page_dims is None:
+                    page_dims = {}
+                for pn in missing_pages:
+                    if pn not in page_dims:
+                        p = _pdf.pages[pn - 1]
+                        page_dims[pn] = [p.width, p.height]
+                inner_words, _ = get_inner_words(
+                    _pdf, page_words, inner_lines, page_dims, page_count,
+                )
             inner_words_flatten = flatten_arr(inner_words)
 
             # 地区/区域拆分排除 — 表格内容出现地理维度拆分关键词则跳过
             if match_patterns(first_line, _REGION_SPLIT_PATTERNS):
                 continue
 
-            if not is_table(inner_words_flatten):
+            if not is_table(inner_words_flatten, inner_lines):
                 continue
 
-            
+
 
             related_inner_lines.append(inner_lines)
 
@@ -233,11 +326,23 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 full_history.append(inner_lines)
             if prior_names and matched_count_arr == len(prior_names):
                 full_history_arr.append(inner_lines)
-
-    try:
-        _save_words_cache(pdf_path, page_words)
-    except Exception:
-        pass
+    finally:
+        # 保存缓存并关闭 PDF
+        try:
+            if _pdf is not None and not page_dims:
+                page_dims = {}
+                for pn in range(1, page_count + 1):
+                    p = _pdf.pages[pn - 1]
+                    page_dims[pn] = [p.width, p.height]
+            _save_words_cache(pdf_path, page_words, page_dims, page_count)
+        except Exception:
+            pass
+        if _pdf is not None:
+            try:
+                _pdf.__exit__(None, None, None)
+            except Exception:
+                pass
+            _pdf = None
 
     if not related_inner_lines:
         return None, [], False
