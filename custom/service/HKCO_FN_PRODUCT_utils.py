@@ -32,8 +32,9 @@ def _number_format_variants(value):
         plain = str(int(magnitude))
         comma = f"{int(magnitude):,}"
     else:
-        plain = format(magnitude, ".10f").rstrip("0").rstrip(".")
-        comma = format(magnitude, ",.10f").rstrip("0").rstrip(".")
+        plain = str(magnitude)
+        integer_part, _, frac = plain.partition(".")
+        comma = f"{int(integer_part):,}" + (f".{frac}" if frac else "")
     variants = {plain, comma}
     if negative:
         variants.update({f"-{plain}", f"-{comma}", f"({plain})", f"({comma})"})

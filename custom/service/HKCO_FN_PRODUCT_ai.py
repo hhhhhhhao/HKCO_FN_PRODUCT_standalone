@@ -122,7 +122,7 @@ currency: 币种，保持原文；没有则空字符串
         [],
         system_info,
         [],
-        engine="gpt-5.1",
+        engine="DeepSeek-V4-Flash",
     )
     if not payload or str(payload.get("Code")) != "0":
         return None

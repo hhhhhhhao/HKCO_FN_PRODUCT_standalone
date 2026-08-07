@@ -260,7 +260,10 @@ def _number(value: Any) -> Optional[float]:
         return None
     text = result["number"]
     negative = text.startswith("(") and text.endswith(")")
-    amount = float(text.strip("() ").replace(",", ""))
+    amount_text = text.strip("() ").replace(",", "")
+    if not amount_text:
+        return None
+    amount = float(amount_text)
     return -amount if negative else amount
 
 

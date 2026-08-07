@@ -34,7 +34,7 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
     text = line.get("text", "").strip()
 
-    if text == '17.資產負債表日後事項':
+    if text == '未經審計簡明合併現金流量表':
         print
 
     text = line["text"]
@@ -50,11 +50,6 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
     if not contains_chinese(text):
         return False
 
-    # 标题一般贴左侧，表格里的行列标题通常不在最左边。
-    x0 = line.get("x0")
-    if x0 is not None and x0 > 200:
-        return False
-
     # 表格行常以 3 位以上数字结尾（如“投資業績376”），不要切成新章节标题。
     if re.search(r"\d{3,}$", text):
         return False
@@ -65,6 +60,12 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
     # 强制匹配：如果匹配 sure_regex，直接认为是标题
     if match_patterns(text, sure_regex):
         return True
+
+    # 标题一般贴左侧，表格里的行列标题通常不在最左边。
+    # AN202502261643531215 20 反
+    x0 = line.get("x0")
+    if x0 is not None and x0 > 200:
+        return False
 
     # 排除条件：匹配 exclude_regex 的不是标题
     if match_patterns(text, exclude_regex):
@@ -93,8 +94,7 @@ def get_lines_grouped(lines):
         (r"^[\(（]*[、\)）.．。]*[1234567890]+[、\)）.．。]*(表|收入|收益|附註|資產|事項)", 0),
         (r"(表|附註|各項:|如下:|劃分|董事)$", 0), # not 收入: 收益: 包括: 淨額
         (r"按.*(劃分|分)", 0),
-        (r"^(地域資料|分部.*業績|有關.*資料|可呈報.*對賬|管理層.*分析|分部資料|下表.*業績:|股息|附註:|董事|董事會報告書|主要風險及不確定性|環境政策及表現|流動資金及財務資源|資本架構|資產抵押|業務回顧|分類資料|物業租賃|金融服務|分部報告|可呈報.*業績|財務業績|銷售數量|財務回顧|主要策略性投資|按.*資產|收入及其構成|資源投資|地區資料|公司亮點|財務回顧|年度業績概覽|企業戰略|獎項及殊榮)$", 0),
-        (r"^未經.*(表)", 0),
+        (r"^(地域資料|分部.*業績|有關.*資料|可呈報.*對賬|管理層.*分析|分部資料|下表.*業績:|財務摘要|摘要|業績分析|股息|致謝|主要市場指標|附註:|董事|董事會報告書|主要風險及不確定性|環境政策及表現|流動資金及財務資源|資本架構|資產抵押|業務回顧|分類資料|物業租賃|金融服務|分部報告|可呈報.*業績|財務業績|銷售數量|財務回顧|主要策略性投資|按.*資產|收入及其構成|資源投資|地區資料|公司亮點|財務回顧|年度業績概覽|企業戰略|獎項及殊榮)$", 0),
     ]
     exclude_regex = [
         (r"^(一般)", 0),
@@ -123,6 +123,8 @@ def get_lines_grouped(lines):
         (r"截至.*分部資料", 0), # AN202503021643658606 11
         (r"^下表.*(明細)", 0),
         (r"^註釋", 0),
+        (r"^未經.*(表)", 0),
+        (r"^(下表|本集團).*(:)$", 0),
     ]
 
     # 找到标题段落所在索引
