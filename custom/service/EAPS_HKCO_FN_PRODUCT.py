@@ -154,6 +154,9 @@ def _save_lines_cache(pdf_path, raw_pages):
 
 
 def get_lines(pdf_path):
+    with open(pdf_path, "rb") as pdf_file:
+        if pdf_file.read(5) != b"%PDF-":
+            raise _UnrecognizedDocument()
     cached_pages = _load_lines_cache(pdf_path)
     if cached_pages is not None:
         return [
@@ -629,6 +632,7 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     debug_meta = {
                         "selected_count": len(target_items) + len(metric_debug.get("source_tables", [])),
                         "source_pages": source_pages,
+                        "selected_lines": main_inner_lines or [] if backtest else [],
                         "from_full_history": from_full_history,
                         "total_validated": total_validated,
                         "selected_table": selected_table,
@@ -873,7 +877,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202503181644489590"
+    code = "AN202502281643610793"
     pdf_path = os.path.join(root, "pdf_json", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

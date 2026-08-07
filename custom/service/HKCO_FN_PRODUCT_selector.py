@@ -38,12 +38,13 @@ _REGION_SPLIT_PATTERNS = [
     (r"按.*(地區|地区)", 0),
     (r"(?:地區|地区)\s*分部", 0),
     (r"(按.*(地區|地区|地域|區域|区域|所在地).*劃分)", 0),
+    (r"^(地區資料)$", 0),
 ]
 
 # 每一行是一个正则优先级（(pattern, group) 元组），从上到下依次匹配章节标题。
 _TABLE_CLASS_PATTERNS = [
-    [(r"分部收入及業績", 0)],
-    [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下", 0)],
+    [(r"分部收入及業績|收益及業績", 0)],
+    [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下", 0)],
     [(r"外部客戶收入|外部客户收入", 0)],
     [
         (r"按.*收入.*業績", 0),
@@ -255,20 +256,21 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             first_line = inner_lines[0]["text"]
             inner_lines_text = "/".join(line["text"] for line in inner_lines)
 
-            if '未經審計簡明綜合全面虧損表' == first_line:
+            if '以下為按可呈報及營運分部劃分的本集團收入、業績、資產及負債分析:' == first_line:
                 print
 
             # 严格标题排除只检查章节第一行
             exlcude_words = (
                 "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债",
                 "員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量",
-                "賬齡", "账龄","現金流量", "现金流量",'綜合全面收益表','財務摘要','财务摘要',
+                "賬齡", "账龄","現金流量", "现金流量",'財務摘要','财务摘要',
                 '財務回顧','财务回顾','主要客户的資料','概不','比較數字','網絡','公佈','政府','股息','紅線',
                 '季度比較', # AN202502271643556315 40
                 '股本', # AN202602271820108796
-                '資產負債表', '资产负债表', '財務狀況表', '财务状况表',  # 资产负债表不含产品收入
             )
             if any( keyword in first_line for keyword in exlcude_words ):
+                continue
+            if any( keyword in first_line for keyword in ['資產負債表','资产负债表','資產及負債']) and not '分部' in first_line:
                 continue
 
             include_words =  (
@@ -278,7 +280,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 "利潤", "利润", "營運", "营运", "虧損", "亏损", "虧損表", "损益表",
                 "利潤表", "利润表", "營運報表", "营运报表",
                 "附註", "附注",  # 产品收入表常在财务报表附注里
-                "管理層討論", "管理层讨论",  # 管理层讨论章节常有产品收入汇总
+                # "管理層討論", "管理层讨论",  # 管理层讨论章节常有产品收入汇总
                 "劃分", "划分",  # 按產品劃分/按業務劃分等
             )
             if not any(keyword in first_line for keyword in include_words):
@@ -322,7 +324,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             )
             max_matched_count = max(matched_count,matched_count_arr,blur_matched_count,0)
             history_groups[max_matched_count].append(inner_lines)
-            if prior_names and matched_count == len(prior_names):
+            if prior_names and max_matched_count == len(prior_names):
                 full_history.append(inner_lines)
             if prior_names and matched_count_arr == len(prior_names):
                 full_history_arr.append(inner_lines)

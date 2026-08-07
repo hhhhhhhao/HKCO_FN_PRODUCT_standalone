@@ -194,11 +194,37 @@ def get_end_date(text_line):
     return None
 
 
+def _parse_iso_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.date.fromisoformat(str(value))
+    except ValueError:
+        match = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", str(value).strip())
+        if not match:
+            return None
+        year, month, day = (int(part) for part in match.groups())
+        if month < 1 or month > 12:
+            return None
+        day = min(day, calendar.monthrange(year, month)[1])
+        try:
+            return datetime.date(year, month, day)
+        except ValueError:
+            return None
+
+
+def _normalize_iso_date(value):
+    parsed = _parse_iso_date(value)
+    return parsed.isoformat() if parsed else value
+
+
 def get_start_date(start_date, report_date, this_year, text=""):
     if start_date:
         return start_date
     if report_date:
-        end_date = datetime.date.fromisoformat(report_date)
+        end_date = _parse_iso_date(report_date)
+        if end_date is None:
+            return None
         if re.search(r"六個月|六个月|6\s*個月|6\s*个月|six months", text, re.I):
             months = 6
         elif re.search(r"九個月|九个月|9\s*個月|9\s*个月|nine months", text, re.I):
@@ -337,8 +363,8 @@ def _fact(table: Dict[str, Any], name: str, amount: float, start: str, end: str,
         "metric": "MBREVENUE",
         "product_name": name,
         "amount": amount,
-        "start_date": start,
-        "end_date": end,
+        "start_date": _normalize_iso_date(start),
+        "end_date": _normalize_iso_date(end),
         "currency": currency,
         "unit": unit,
     }

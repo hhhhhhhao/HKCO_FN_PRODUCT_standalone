@@ -21,5 +21,8 @@
     "PRODUCTNAME"
   ],
   "pdf_dir": "pdf",
-  "cache_dir": "parse_cache"
+  "cache_dir": "parse_cache",
+  "exclude_infocodes": [
+    "AN202502201643297822"
+  ]
 }

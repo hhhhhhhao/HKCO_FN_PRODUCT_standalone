@@ -1,7 +1,60 @@
 # -*- coding: utf-8 -*-
 """HKCO 公共工具：全角转半角、上期产品名匹配。"""
-import unicodedata
 import re
+import unicodedata
+
+
+_GT_VALUE_FIELDS = ("MBREVENUE", "MBCOST")
+
+
+def _to_number(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, str):
+        text = value.replace(",", "").strip()
+        if not text or text in ("-", "--"):
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _number_format_variants(value):
+    """Return plain and comma-separated text forms for a numeric GT value."""
+    negative = value < 0
+    magnitude = abs(value)
+    if magnitude == int(magnitude):
+        plain = str(int(magnitude))
+        comma = f"{int(magnitude):,}"
+    else:
+        plain = format(magnitude, ".10f").rstrip("0").rstrip(".")
+        comma = format(magnitude, ",.10f").rstrip("0").rstrip(".")
+    variants = {plain, comma}
+    if negative:
+        variants.update({f"-{plain}", f"-{comma}", f"({plain})", f"({comma})"})
+    return variants
+
+
+def missing_gt_values_in_selected_lines(gt_records, selected_lines):
+    """Return GT numeric values absent from the selected main lines' text."""
+    text = " ".join(
+        str(line.get("text") or "") if isinstance(line, dict) else str(line or "")
+        for line in (selected_lines or ())
+    )
+    missing = []
+    for row in (gt_records or ()):
+        for field in _GT_VALUE_FIELDS:
+            value = _to_number(row.get(field))
+            if value is None:
+                continue
+            if not any(variant and variant in text for variant in _number_format_variants(value)):
+                missing.append(value)
+    return missing
 
 
 def fullwidth_to_halfwidth(s):

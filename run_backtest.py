@@ -234,6 +234,14 @@ def resolve_pdf_path(infocode: str, schema: Mapping[str, Any]) -> str:
     raise FileNotFoundError(f"找不到 PDF: {candidate}")
 
 
+def is_pdf_file(path: Path) -> bool:
+    try:
+        with path.open("rb") as fh:
+            return fh.read(5) == b"%PDF-"
+    except OSError:
+        return False
+
+
 def select_infocodes(gt: Mapping[str, Any], infocode: str = "") -> List[str]:
     """默认：ground_truth.json 全部 key。"""
     all_ids = sorted(str(k) for k in gt.keys() if str(k).strip())
@@ -248,11 +256,24 @@ def select_infocodes(gt: Mapping[str, Any], infocode: str = "") -> List[str]:
 def find_jobs(infocodes: Sequence[str], schema: Mapping[str, Any]) -> List[Dict[str, str]]:
     jobs = []
     missing = []
+    not_pdf = []
+    excluded = {
+        str(code).strip()
+        for code in (schema.get("exclude_infocodes") or ())
+        if str(code).strip()
+    }
+    skipped = []
     for code in infocodes:
+        if code in excluded:
+            skipped.append(code)
+            continue
         try:
             pdf_path = resolve_pdf_path(code, schema)
         except FileNotFoundError:
             missing.append(code)
+            continue
+        if not is_pdf_file(Path(pdf_path)):
+            not_pdf.append(code)
             continue
         jobs.append(
             {
@@ -265,6 +286,14 @@ def find_jobs(infocodes: Sequence[str], schema: Mapping[str, Any]) -> List[Dict[
         preview = ", ".join(missing[:5])
         more = f" 等{len(missing)}个" if len(missing) > 5 else ""
         print(f"warning: 本地未找到 PDF，已跳过: {preview}{more}")
+    if not_pdf:
+        preview = ", ".join(not_pdf[:5])
+        more = f" 等{len(not_pdf)}个" if len(not_pdf) > 5 else ""
+        print(f"warning: 文件不是有效 PDF，已跳过: {preview}{more}")
+    if skipped:
+        preview = ", ".join(skipped[:5])
+        more = f" 等{len(skipped)}个" if len(skipped) > 5 else ""
+        print(f"warning: 配置排除，已跳过: {preview}{more}")
     return jobs
 
 
@@ -947,6 +976,8 @@ def aggregate(docs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     field_bad: Counter = Counter()
     pipeline_stages: Counter = Counter()
     doc_categories: Counter = Counter()
+    locate_ok_docs = 0
+    locate_fail_codes: List[str] = []
     # 问题子类：按首要问题分类
     empty_output_docs = 0
     pure_missing_docs = 0
@@ -957,6 +988,10 @@ def aggregate(docs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
         roots.update(d["stats"].get("missing_root_cause") or {})
         p = d.get("pipeline") or {}
         pipeline_stages[str(p.get("stage") or "unknown")] += 1
+        if d.get("locate_ok"):
+            locate_ok_docs += 1
+        else:
+            locate_fail_codes.append(str(d.get("infocode") or ""))
         for f, s in (d["stats"].get("field_accuracy_detail") or {}).items():
             if f == "__record__":
                 continue
@@ -994,6 +1029,9 @@ def aggregate(docs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     effective_local = local - forgiven_extra
     return {
         "doc_count": len(docs),
+        "locate_ok_docs": locate_ok_docs,
+        "locate_fail_docs": len(docs) - locate_ok_docs,
+        "locate_fail_codes": sorted(locate_fail_codes),
         # 三层文档分类
         "natural_perfect_docs": int(doc_categories.get("完全匹配", 0)),
         "exempted_perfect_docs": int(doc_categories.get("豁免后匹配", 0)),
@@ -1311,6 +1349,18 @@ def render_html(meta: Mapping[str, Any], agg: Mapping[str, Any], docs: Sequence[
         for k, v in sorted((agg.get("pipeline_stages") or {}).items(), key=lambda x: -x[1])
     ] or ["<tr><td colspan='3'>无</td></tr>"]
 
+    locate_fail_codes = sorted(str(c) for c in (agg.get("locate_fail_codes") or []))
+    locate_fail_rows = "".join(
+        f"<tr><td class='mono'>{_esc(code)}</td></tr>"
+        for code in locate_fail_codes
+    ) or "<tr><td class='muted'>无</td></tr>"
+    locate_fail_body = (
+        "<div class='card'><table><tr><th>公告</th></tr>"
+        f"{locate_fail_rows}</table>"
+        "<p class='muted'>判定：只看 GT 的 MBREVENUE/MBCOST 数值是否全部"
+        "出现在 select_main_table 返回的选中行里，不看后续抽取结果。</p></div>"
+    )
+
     problem_n = int(agg.get("problem_docs") or 0)
     fh_n = int(agg.get("forgiven_full_history_docs") or 0)
     task_name = str(meta.get("task") or "").strip()
@@ -1442,6 +1492,7 @@ async function acceptGt(infocode, btn) {{
   </div>
 {section("字段准确率", f"<div class='card'><table><tr><th>字段</th><th>一致</th><th>不一致</th><th>准确率</th></tr>{''.join(field_rows)}</table></div>", open_=False)}
 {section("抽取管道阶段（按公告）", f"<div class='card'><table><tr><th>阶段</th><th>公告数</th><th>说明</th></tr>{''.join(pipe_rows)}</table><p class='muted'>定位→解析→成表(select)→格式化；零输出时 missing 根因会继承该阶段。</p></div>", open_=False)}
+{section(f"定位失败（GT数值未命中选中行 · {len(locate_fail_codes)} 篇）", locate_fail_body, open_=False, section_id="locate-fail-by-values")}
 {section("差异根因（按 GT 行）", f"<div class='card'><table><tr><th>根因</th><th>行数</th><th>说明</th></tr>{''.join(root_rows)}</table></div>", open_=False)}
 {section(f"需修复文档分类（按首要问题 · {problem_n} 篇）", f"<div class='card'><table><tr><th>首要问题</th><th>文档数</th><th>建议排查方向</th></tr>{problem_sub_lines}</table></div>", open_=True, section_id="problem-categories")}
 {section(f"Full History 豁免（全部上期产品命中 · {fh_n} 篇）", fh_body, open_=True, section_id="fh-exempted")}
@@ -1609,6 +1660,12 @@ def _finalize_job(
 
     write_json(inter_dir / f"{code}_extract.json", result)
     cmp = compare_one(records, gt.get(code, []), code, schema, pipeline=pipeline)
+    from custom.service.HKCO_FN_PRODUCT_utils import missing_gt_values_in_selected_lines
+    selected_lines = pipeline.get("selected_lines") or []
+    missing_loc_values = missing_gt_values_in_selected_lines(gt.get(code, []), selected_lines)
+    cmp["locate_ok"] = not missing_loc_values
+    cmp["locate_missing_values"] = missing_loc_values
+    cmp["selected_line_count"] = len(selected_lines)
     cmp["pdf_path"] = pdf_path
     cmp["pdf_url"] = pdf_url
     if "无法识别" in str(pipeline.get("message") or "") or "无法识别" in str(pipeline.get("stage_label") or ""):
@@ -1708,11 +1765,13 @@ def run_backtest(
                 )
                 for wid, chunk in enumerate(chunks)
             ]
-            for fut in as_completed(futures):
+            for done, fut in enumerate(as_completed(futures), 1):
                 docs.extend(fut.result())
+                print(f"[main] {done}/{len(futures)} worker chunks done", flush=True)
 
     docs = [d for d in docs if not d.get("excluded")]
     docs.sort(key=lambda d: str(d.get("infocode") or ""))
+    print(f"[main] all chunks done ({len(docs)} docs); writing metrics/report...", flush=True)
 
     agg = aggregate(docs)
     meta = {

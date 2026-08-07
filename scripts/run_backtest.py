@@ -36,6 +36,7 @@ def backtest_one(task):
             "message": debug.get("message", ""),
             "source_pages": debug.get("source_pages", []),
             "records": records,
+            "selected_lines": debug.get("selected_lines", []),
             "error": result.get("error_message", ""),
         }
     except Exception as exc:
@@ -126,6 +127,8 @@ def main():
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 个")
     args = parser.parse_args()
 
+    from custom.service.HKCO_FN_PRODUCT_utils import missing_gt_values_in_selected_lines
+
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = ROOT / "batch_runs" / "HKCO_FN_PRODUCT" / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -155,10 +158,10 @@ def main():
         with ProcessPoolExecutor(max_workers=args.workers) as executor:
             results = list(executor.map(backtest_one, tasks, chunksize=4))
 
-    # 分析结果
-    locate_wrong = []  # matched==0 → 定位错误
-    extract_wrong = []  # matched>0 但金额不对 → 抽取问题
-    fully_ok = []  # 全部匹配
+    # 定位只看 GT 数值是否全部出现在 select_main_table 返回的选中行里。
+    locate_wrong = []  # GT 数值未全部命中选中行 → 定位错误
+    extract_wrong = []  # 定位正确但抽取有误
+    fully_ok = []  # 定位正确 + 抽取正确
     other_wrong = []  # 异常/报错
     detail = {}
 
@@ -170,6 +173,9 @@ def main():
         pages = result.get("source_pages", [])
         records = result.get("records", [])
         err = result.get("error", "")
+        selected_lines = result.get("selected_lines", [])
+        gt_records = gt.get(code, [])
+        missing_loc_values = missing_gt_values_in_selected_lines(gt_records, selected_lines)
 
         detail[code] = {
             "status": status,
@@ -177,13 +183,30 @@ def main():
             "message": message,
             "source_pages": pages,
             "record_count": len(records),
+            "locate_ok": not missing_loc_values,
+            "missing_loc_values": missing_loc_values[:20],
         }
 
-        if status != "success":
+        if status == "error" or err:
             other_wrong.append((code, status, stage, pages, f"status={status} msg={message} err={err[:100]}"))
             continue
 
-        gt_records = gt.get(code, [])
+        if missing_loc_values:
+            locate_wrong.append((
+                code,
+                pages,
+                f"GT数值缺失={len(missing_loc_values)} missing={missing_loc_values[:5]}",
+            ))
+            continue
+
+        if status != "success":
+            extract_wrong.append((
+                code,
+                pages,
+                f"定位正确但{stage}: msg={message} err={err[:100]}",
+            ))
+            continue
+
         missing, wrong_amts, matched, gt_total = compare_records(records, gt_records)
 
         detail[code]["gt_total"] = gt_total
@@ -191,9 +214,7 @@ def main():
         detail[code]["missing_products"] = missing
         detail[code]["wrong_amounts"] = wrong_amts
 
-        if matched == 0:
-            locate_wrong.append((code, pages, f"matched=0/{gt_total} missing={missing[:5]}"))
-        elif missing or wrong_amts:
+        if missing or wrong_amts:
             extract_wrong.append((code, pages, f"matched={matched}/{gt_total} missing={missing[:5]} wrong_amt={wrong_amts[:3]}"))
         else:
             fully_ok.append((code, pages))
@@ -204,11 +225,11 @@ def main():
     lines.append(f"总任务数: {len(results)}")
     lines.append(f"定位正确+抽取正确: {len(fully_ok)}")
     lines.append(f"定位正确+抽取有误: {len(extract_wrong)}")
-    lines.append(f"定位错误(matched=0): {len(locate_wrong)}")
+    lines.append(f"定位错误(GT数值未命中选中行): {len(locate_wrong)}")
     lines.append(f"异常/报错: {len(other_wrong)}")
 
     if locate_wrong:
-        lines.append(f"\n--- 定位错误（GT产品名无一命中，共{len(locate_wrong)}）---")
+        lines.append(f"\n--- 定位错误（GT数值未全部出现在选中行，共{len(locate_wrong)}）---")
         for code, pages, detail_str in locate_wrong:
             lines.append(f"  {code}  pages={pages}  {detail_str}")
 
@@ -226,11 +247,7 @@ def main():
 
     # 写 wrong_table_selection_codes.txt
     loc_wrong_path = ROOT / "analysis" / "HKCO_FN_PRODUCT" / "wrong_table_selection_codes.txt"
-    # 也纳入 locate_fail / empty_output 阶段的
     loc_codes = set(c for c, _, _ in locate_wrong)
-    for code, status, stage, pages, detail_str in other_wrong:
-        if stage in ("locate_fail", "empty_output"):
-            loc_codes.add(code)
     loc_wrong_path.parent.mkdir(parents=True, exist_ok=True)
     loc_wrong_path.write_text(
         "\n".join([f"# 定位错误 {len(loc_codes)}"] + sorted(loc_codes)) + "\n"
