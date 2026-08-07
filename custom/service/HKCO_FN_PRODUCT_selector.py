@@ -43,9 +43,9 @@ _REGION_SPLIT_PATTERNS = [
 
 # 每一行是一个正则优先级（(pattern, group) 元组），从上到下依次匹配章节标题。
 _TABLE_CLASS_PATTERNS = [
-    [(r"分部收入及業績|收益及業績", 0)],
-    [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下", 0)],
-    [(r"外部客戶收入|外部客户收入", 0)],
+    [(r"分部收入及業績|收益及業績|業務分部|分拆.*(收入|收益)|收入明細|收益明細|收入分類|收益分類|收入構成|收益構成|分部業績|財務回顧|可呈報及經營分部.*業績|reportableandoperatingsegment|客户合約收益之細分|客戶合約收益之細分", 0)],
+    [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下|分部收入", 0)],
+    [(r"外部客戶收入|外部客户收入|收入、其他收益", 0)],
     [
         (r"按.*收入.*業績", 0),
         (r"按服務|按服务|按類別|按类别", 0),
@@ -206,6 +206,7 @@ def get_inner_words(pdf, page_words, inner_lines, page_dims=None, page_count=0):
 def is_table(inner_words_flatten, inner_lines=None):
     number_sum = 0
     for word in inner_words_flatten:
+        word['text'] = re.sub(r"[\(\（]\d[\)\）]", "", word['text'])
         if len(word['text']) >= 3 and is_number(word['text']) and not contains_chinese(word['text']):
             number_sum = number_sum + 1
     if number_sum > 3:
@@ -256,7 +257,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             first_line = inner_lines[0]["text"]
             inner_lines_text = "/".join(line["text"] for line in inner_lines)
 
-            if '以下為按可呈報及營運分部劃分的本集團收入、業績、資產及負債分析:' == first_line:
+            if '(a)分部業績、資產及負債' == first_line:
                 print
 
             # 严格标题排除只检查章节第一行
@@ -264,13 +265,20 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 "分類資產及負債","財務數字", "财务数字","合同負債", "合同负债", "合約負債", "合约负债",
                 "員工人數", "员工人数", "僱員人數", "雇员人数","銷量", "销量", "產量", "产量",
                 "賬齡", "账龄","現金流量", "现金流量",'財務摘要','财务摘要',
-                '財務回顧','财务回顾','主要客户的資料','概不','比較數字','網絡','公佈','政府','股息','紅線',
+                '主要客户的資料','概不','比較數字','網絡','公佈','政府','股息','紅線','性別','地區劃分','股權','僱傭','年齡','每股收益',
                 '季度比較', # AN202502271643556315 40
                 '股本', # AN202602271820108796
             )
-            if any( keyword in first_line for keyword in exlcude_words ):
+            if any(keyword in first_line for keyword in exlcude_words):
                 continue
-            if any( keyword in first_line for keyword in ['資產負債表','资产负债表','資產及負債']) and not '分部' in first_line:
+            if any(keyword in first_line for keyword in ['資產負債表','资产负债表','資產及負債']) and not (
+                '分部' in first_line or '分部' in inner_lines_text
+            ):
+                continue
+            if ('財務回顧' in first_line or '财务回顾' in first_line) and not any(
+                keyword in inner_lines_text
+                for keyword in ('收入', '收益', '分部', '產品', '服務', '銷售')
+            ):
                 continue
 
             include_words =  (
@@ -354,13 +362,15 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
         return full_history[0], related_inner_lines, True
 
     # 只有一个全量历史命中章节时，直接选择。(table命中版)
-    if len(full_history_arr) == 1:
-        return full_history_arr[0], related_inner_lines, True
+    # if len(full_history_arr) == 1:
+    #     return full_history_arr[0], related_inner_lines, True
 
     # 有全量历史命中章节时只保留它们，否则降级到历史产品命中数最高的前两组。
     candidate_tables = []
     if full_history:
         candidate_tables.extend(full_history)
+        # if len(prior_names) - 1 >= 0:
+        #     candidate_tables.extend(history_groups[len(prior_names) - 1])
     else:
         collected_groups = 0
         for hit_count in range(len(prior_names), -1, -1):
@@ -390,5 +400,15 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 if match_patterns(inner_lines[0]["text"], patterns):
                     return inner_lines, related_inner_lines, _in_full_history(inner_lines)
 
-    # 完全同分时不看页码或物理表 ID，保留最先出现的章节。
+    # 完全同分且没有表型 pattern 命中时，优先选更小的表格章节，避免选到整段业务回顾/附注。
+    # if len(candidate_tables) > 1:
+    #     best = min(
+    #         candidate_tables,
+    #         key=lambda group: (
+    #             len({line.get("page_number") for line in group}),
+    #             len(group),
+    #         ),
+    #     )
+    #     return best, related_inner_lines, _in_full_history(best)
+
     return candidate_tables[0], related_inner_lines, _in_full_history(candidate_tables[0])

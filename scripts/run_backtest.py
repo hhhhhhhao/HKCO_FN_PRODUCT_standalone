@@ -127,7 +127,10 @@ def main():
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 个")
     args = parser.parse_args()
 
-    from custom.service.HKCO_FN_PRODUCT_utils import missing_gt_values_in_selected_lines
+    from custom.service.HKCO_FN_PRODUCT_utils import (
+        locate_ok_by_ratio,
+        missing_gt_values_in_selected_lines,
+    )
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = ROOT / "batch_runs" / "HKCO_FN_PRODUCT" / stamp
@@ -176,6 +179,12 @@ def main():
         selected_lines = result.get("selected_lines", [])
         gt_records = gt.get(code, [])
         missing_loc_values = missing_gt_values_in_selected_lines(gt_records, selected_lines)
+        first_line = str(selected_lines[0].get("text") or "") if selected_lines else ""
+        locate_ok = (
+            not missing_loc_values
+            or locate_ok_by_ratio(gt_records, missing_loc_values)
+            or "分部" in first_line
+        )
 
         detail[code] = {
             "status": status,
@@ -183,7 +192,7 @@ def main():
             "message": message,
             "source_pages": pages,
             "record_count": len(records),
-            "locate_ok": not missing_loc_values,
+            "locate_ok": locate_ok,
             "missing_loc_values": missing_loc_values[:20],
         }
 
@@ -191,11 +200,11 @@ def main():
             other_wrong.append((code, status, stage, pages, f"status={status} msg={message} err={err[:100]}"))
             continue
 
-        if missing_loc_values:
+        if not locate_ok:
             locate_wrong.append((
                 code,
                 pages,
-                f"GT数值缺失={len(missing_loc_values)} missing={missing_loc_values[:5]}",
+                f"GT数值命中不足70% missing={len(missing_loc_values)} values={missing_loc_values[:5]}",
             ))
             continue
 

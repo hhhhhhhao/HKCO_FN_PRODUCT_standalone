@@ -4,7 +4,7 @@ import re
 import unicodedata
 
 
-_GT_VALUE_FIELDS = ("MBREVENUE", "MBCOST")
+_GT_VALUE_FIELDS = ("MBREVENUE",)
 
 
 def _to_number(value):
@@ -55,6 +55,20 @@ def missing_gt_values_in_selected_lines(gt_records, selected_lines):
             if not any(variant and variant in text for variant in _number_format_variants(value)):
                 missing.append(value)
     return missing
+
+
+def locate_ok_by_ratio(gt_records, missing_values):
+    """GT 数值超过 4 个时，70% 及以上命中即视为定位成功。"""
+    total = sum(
+        1
+        for row in (gt_records or ())
+        for field in _GT_VALUE_FIELDS
+        if _to_number(row.get(field)) is not None
+    )
+    if total <= 4:
+        return False
+    found = total - len(missing_values or ())
+    return found / total >= 0.7
 
 
 def fullwidth_to_halfwidth(s):

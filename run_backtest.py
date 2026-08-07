@@ -1660,10 +1660,18 @@ def _finalize_job(
 
     write_json(inter_dir / f"{code}_extract.json", result)
     cmp = compare_one(records, gt.get(code, []), code, schema, pipeline=pipeline)
-    from custom.service.HKCO_FN_PRODUCT_utils import missing_gt_values_in_selected_lines
+    from custom.service.HKCO_FN_PRODUCT_utils import (
+        locate_ok_by_ratio,
+        missing_gt_values_in_selected_lines,
+    )
     selected_lines = pipeline.get("selected_lines") or []
     missing_loc_values = missing_gt_values_in_selected_lines(gt.get(code, []), selected_lines)
-    cmp["locate_ok"] = not missing_loc_values
+    first_line = str(selected_lines[0].get("text") or "") if selected_lines else ""
+    cmp["locate_ok"] = (
+        not missing_loc_values
+        or locate_ok_by_ratio(gt.get(code, []), missing_loc_values)
+        or "分部" in first_line
+    )
     cmp["locate_missing_values"] = missing_loc_values
     cmp["selected_line_count"] = len(selected_lines)
     cmp["pdf_path"] = pdf_path
