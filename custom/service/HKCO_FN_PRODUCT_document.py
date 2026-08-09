@@ -34,7 +34,7 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
     text = line.get("text", "").strip()
 
-    if text == '(a)Disaggregationofrevenue(a)':
+    if text == '下表概述本集團於2024年12月31日主要持作投資物業詳情:':
         print
 
     text = line["text"]
@@ -56,6 +56,9 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 
     # if line.get("is_table", False):
     #     return False
+
+    if not re.search(r'\d',text) and contains_chinese(text) and not re.search(r'[A-Za-z]',text) and len(text) <= 6 and not ',' in text and  not '.' in text and not '。' in text and line['x0'] < 90:
+        return True
 
     # 强制匹配：如果匹配 sure_regex，直接认为是标题
     if match_patterns(text, sure_regex):
@@ -93,10 +96,10 @@ def is_title_line(line, title_regex, exclude_regex, sure_regex):
 def get_lines_grouped(lines):
     title_regex = [
         (r"^[\(（]*[、\)）.．。]*[一二三四五六七八九十①②③④⑤⑥⑦⑧⑨A-Da-di]+[、\)）.．。]*", 0),
-        (r"^[\(（]*[、\)）.．。]*[1234567890]+[、\)）.．。]*.*(表|收入|收益|附註|資產|事項|分部|業績)", 0),
-        (r"(表|附註|各項:|如下:|劃分|董事)$", 0), # not 收入: 收益: 包括: 淨額
+        (r"^[\(（]*[、\)）.．。]*[1234567890]+[、\)）.．。]*.*(表|收入|收益|附註|資產|事項|分部|業績|融資成本|股息|盈利|應付|賬款|概要|會計)", 0),
+        (r"(表|附註|各項:|如下:|劃分|董事|收益分類:)$", 0), # not 收入: 收益: 包括: 淨額
         (r"按.*(劃分|分)", 0),
-        (r"^(地域資料|分部.*業績|有關.*資料|可呈報.*對賬|管理層.*分析|分部資料|下表.*業績:|財務摘要|摘要|業績分析|股息|致謝|主要市場指標|附註:|董事|董事會報告書|主要風險及不確定性|環境政策及表現|流動資金及財務資源|資本架構|資產抵押|業務回顧|分類資料|物業租賃|金融服務|分部報告|可呈報.*業績|財務業績|銷售數量|財務回顧|主要策略性投資|按.*資產|收入及其構成|資源投資|地區資料|公司亮點|財務回顧|年度業績概覽|企業戰略|獎項及殊榮)$", 0),
+        (r"^(地域資料|分部.*業績|有關.*資料|可呈報.*對賬|管理層.*分析|分部資料|下表.*業績:|財務摘要|摘要|業績分析|分部資產及負債|國際財務報告準則|股息|致謝|主要市場指標|附註:|董事|董事會報告書|主要風險及不確定性|環境政策及表現|流動資金及財務資源|分列.*資料|資本架構|資產抵押|業務回顧|分類資料|物業租賃|金融服務|分部報告|可呈報.*業績|財務業績|銷售數量|財務回顧|主要策略性投資|按.*資產|收入及其構成|資源投資|地區資料|公司亮點|財務回顧|年度業績概覽|企業戰略|獎項及殊榮)$", 0),
     ]
     exclude_regex = [
         (r"^(一般)", 0),
@@ -120,10 +123,10 @@ def get_lines_grouped(lines):
         (r"(按.*(地區|地区|地域|區域|区域|所在地).*劃分)", 0),
         (r"按.*(收入|收益|業績)", 0),
         (r"^(其他分部資料:｜綜合全面收益表)$", 0),
-        (r"(分部.*如下:|董事)$", 0),
+        (r"(分部.*如下:|董事|概要)$", 0),
         (r"^[\(（]*[、\)）.．。]*[1234567890一二三四五六七八九十①②③④⑤⑥⑦⑧⑨A-Da-di]+[、\)）.．。]*.*(來自|分部資料|財務信息|分部報告|Disaggregationofrevenue)", 0),
         (r"截至.*分部資料", 0), # AN202503021643658606 11
-        (r"^下表.*(明細)", 0),
+        (r"^下表.*(明細|:)", 0),
         (r"^註釋", 0),
         (r"^未經.*(表)", 0),
         (r"^(下表|本集團).*(:)$", 0),
@@ -154,13 +157,32 @@ def get_lines_grouped(lines):
             continue
         first_line = inner_lines[0]["text"]
         is_lone_heading = (
-            len(inner_lines) == 1
+            len(inner_lines) <= 4
             and not inner_lines[0].get("is_table")
-            and '收入' in first_line
+            and ('收入' in first_line or '收益' in first_line)
         )
         if is_lone_heading and i + 1 < len(lines_grouped):
             lines_grouped[i + 1].insert(0, dict(inner_lines[0]))
         else:
             merged.append(inner_lines)
 
-    return merged
+    # 首行含"分部"但章节内无千分位数字（如123,456）的纯描述段落，并入下一章。
+    merged2 = []
+    for i, inner_lines in enumerate(merged):
+        if not inner_lines:
+            continue
+        first_line = inner_lines[0]["text"]
+        inner_text = ''.join(l["text"] for l in inner_lines)
+        has_data_numbers = bool(re.search(r'\d{1,3}(,\d{3})+', inner_text))
+        is_desc_segment = (
+            len(inner_lines) <= 4
+            and not inner_lines[0].get("is_table")
+            and '分部' in first_line
+            and not has_data_numbers
+        )
+        if is_desc_segment and i + 1 < len(merged):
+            merged[i + 1].insert(0, dict(inner_lines[0]))
+        else:
+            merged2.append(inner_lines)
+
+    return merged2

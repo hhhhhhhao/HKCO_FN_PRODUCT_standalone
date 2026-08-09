@@ -43,9 +43,10 @@ _REGION_SPLIT_PATTERNS = [
 
 # 每一行是一个正则优先级（(pattern, group) 元组），从上到下依次匹配章节标题。
 _TABLE_CLASS_PATTERNS = [
-    [(r"分部.*業績|收益及業績|業務分部|分拆.*(收入|收益)|收入明細|收益明細|收入分類|收益分類|收入構成|收益構成|分部業績|財務回顧|分部.*經營|reportableandoperatingsegment|客户合約收益|客戶合約收益|客户合約收入", 0)],
+    [(r"分部.*業績|收益及業績|業務分部|分拆.*(收入|收益)|收入明細|收益明細|收入分類|收益分類|收入構成|收益構成|分部業績|財務回顧|分部.*經營|reportableandoperatingsegment|客户合約收益|客戶合約收益|客户合約收入|客戶的合約.*收益", 0)],
     [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部信息|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下|分部收入", 0)],
-    [(r"外部客戶收入|外部客户收入|收入、其他收益", 0)],
+    [(r"外部客戶收入|外部客户收入|收入、其他收益|^收入:$", 0)],
+    
     [
         (r"按.*收入.*業績", 0),
         (r"按服務|按服务|按類別|按类别", 0),
@@ -57,10 +58,10 @@ _TABLE_CLASS_PATTERNS = [
     ],
     # [(r"收入|收益", 0)],
     [(r"收益淨額", 0)],
-    [(r"收入、資本支出及實現價格", 0)],
+    [(r"收入、資本支出及實現價格|客户合約收入", 0)],
     [(r"按業務類型分類", 0)],
-    [(r"損益表|损益表|虧損表|亏损表|損益賬|損益.*表", 0)],
-    [(r"附註|附注", 0)],
+    [(r"損益表|损益表|收益表|虧損表|亏损表|損益賬|損益.*表", 0)],
+    # (r"附註|附注", 0)],
 ]
 
 
@@ -204,7 +205,7 @@ def get_inner_words(pdf, page_words, inner_lines, page_dims=None, page_count=0):
         )
     return words, missing_pages
 
-def is_table(inner_words_flatten, inner_lines=None):
+def is_table(inner_words_flatten, inner_lines, inner_lines_text):
     number_sum = 0
     for word in inner_words_flatten:
         word['text'] = re.sub(r"[\(\（]\d[\)\）]", "", word['text'])
@@ -212,12 +213,16 @@ def is_table(inner_words_flatten, inner_lines=None):
             number_sum = number_sum + 1
     if number_sum > 3:
         return True
+
+    if any(keyword for keyword in ['千港元','万港元'] if keyword in inner_lines_text):
+        return True
+
     # fallback: 附註等章节文字多但内嵌表格，words 提取不到足够数字
-    if inner_lines:
-        text = ' '.join(str(l.get('text') or '') for l in inner_lines)
-        amounts = re.findall(r'\d{1,3}(?:,\d{3})+|\d{5,}', text)
-        if len(amounts) >= 5:
-            return True
+    # if inner_lines:
+    #     text = ' '.join(str(l.get('text') or '') for l in inner_lines)
+    #     amounts = re.findall(r'\d{1,3}(?:,\d{3})+|\d{5,}', text)
+    #    if len(amounts) >= 5:
+    #         return True
     return False
 
 def select_main_table(pdf_path, lines_grouped, prior_names=()):
@@ -255,7 +260,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             first_line = inner_lines[0]["text"]
             inner_lines_text = "/".join(line["text"] for line in inner_lines)
 
-            if '本集團就某時間段及某一時間點的貨品及服務轉移獲取的客户合約收入如下:' == first_line:
+            if '收入:' == first_line:
                 print
 
             # 严格标题排除只检查章节第一行
@@ -268,6 +273,9 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 '股本', # AN202602271820108796
                 '註釋', '壞賬', # AN202504031650851715
                 '業務回顧', # AN202603121820526849
+                '分部資產及負債',
+                '基準', # AN202503281648794423
+                '虧損', # AN202603301820876262
             )
             if any(keyword in first_line for keyword in exlcude_words):
                 continue
@@ -285,7 +293,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 "收入", "收益", "分部", "資料", "經營", "業務", "產品", "服務",
                 "銷售", "分類", "客户合約", "明細", "分拆", "類別", "營業額",
                 "合同", "客户合同", "營收", "業績",
-                "利潤", "利润", "營運", "营运", "虧損", "亏损", "虧損表", "损益表",
+                "利潤", "利润", "營運", "营运", "虧損", "亏损", "虧損表", "损益表", "損益表",
                 "利潤表", "利润表", "營運報表", "营运报表",
                 "附註", "附注",  # 产品收入表常在财务报表附注里
                 # "管理層討論", "管理层讨论",  # 管理层讨论章节常有产品收入汇总
@@ -317,7 +325,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             if match_patterns(first_line, _REGION_SPLIT_PATTERNS):
                 continue
 
-            if not is_table(inner_words_flatten, inner_lines):
+            if not is_table(inner_words_flatten, inner_lines, inner_lines_text):
                 continue
 
 

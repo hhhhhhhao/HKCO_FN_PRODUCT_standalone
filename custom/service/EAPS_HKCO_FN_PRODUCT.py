@@ -196,6 +196,8 @@ def format_lines(page_lines, page_number):
         line["page_number"] = page_number + 1
         line["text"] = fullwidth_to_halfwidth(line["text"])
         line["text"] = line["text"].replace(' ', '').replace('①', '1、').replace('②', '2、').replace('③', '3、').replace('④', '4、').replace('⑤', '5、').replace('⑥', '6、').replace('⑦', '7、').replace('⑧', '8、').replace('⑨', '9、').replace('⑩', '10、')
+        # OCR 重复字去重：'收收收收入入入入' → '收入'
+        line["text"] = re.sub(r'([一-鿿])\1{3,}', r'\1', line["text"])
 
         # AN202504111654732368 46
         # AN202301101581847986 43
@@ -210,8 +212,10 @@ def format_lines(page_lines, page_number):
         if line['bottom'] > 750 and re.search(r'^\d',line['text']) and ('上述' in line['text'] ):
             line["text"]  = 'delete'
 
-        if line['top'] < 70 and '附註' in line['text']:
-            line["text"]  = 'delete'
+        if line['top'] < 120 and '附註' in line['text']:
+            for inner_line_index, inner_line in enumerate(page_lines):
+                page_lines[inner_line_index]['text'] = 'delete'
+
 
     page_lines = [page_line for page_line in page_lines if not page_line['text'] == 'delete']
 
@@ -881,7 +885,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202603121820526849"
+    code = "AN202603201820673185"
     pdf_path = os.path.join(root, "pdf_json", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),
