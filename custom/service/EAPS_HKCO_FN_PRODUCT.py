@@ -561,6 +561,12 @@ def process_pdf_file(pdf_path, info_code, request_id, task_info_list, ocr_result
                     _dbg(f"ai_table_ids={[table.get('id') for table in ai_tables]}")
 
                     # 3. 分析主表结构并抽取产品、收入。
+                    context["info_code"] = info_code
+                    context["related_text"] = " ".join(
+                        line.get("text", "")
+                        for lines in (related_inner_lines or ())
+                        for line in (lines or ())
+                    )
                     main_facts = extract_main_table(rule_tables, context)
                     rule_fact_count = len(main_facts)
                     ai_facts, ai_debug = extract_ai_tables(

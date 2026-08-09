@@ -188,12 +188,18 @@ def _assemble_grid(rows):
         return []
 
     number_x1 = []
+    text_x0 = []
     for row in rows:
         for word in row:
             if is_number(word["text"]):
                 number_x1.append(word["x1"])
+            elif re.search(r'[一-鿿]', word["text"]) and word["x0"] > 0:
+                text_x0.append(word["x0"])
 
     anchors = _cluster_x1(number_x1)
+    if len(anchors) < 2 and text_x0:
+        text_anchors = _cluster_text_x0(text_x0)
+        anchors = sorted(set(anchors + text_anchors))
     if not anchors:
         return [_split_row_by_gaps(row) for row in rows]
 
@@ -208,8 +214,59 @@ def _assemble_grid(rows):
             if cells[column]:
                 cells[column] += " "
             cells[column] += word["text"]
+        cells = _split_concatenated_cells(cells)
         grid.append([re.sub(r"\s+", " ", cell).strip() for cell in cells])
     return grid
+
+
+def _cluster_text_x0(values):
+    """用 CJK 文本词左边界聚类，找非首列（产品名列）的列起始位置。"""
+    values = sorted(set(v for v in values if v > 80))
+    if len(values) <= 1:
+        return []
+    # 找间隔 > 40 的跳跃点作为列边界
+    boundaries = []
+    for i in range(1, len(values)):
+        if values[i] - values[i - 1] > 40:
+            boundaries.append(values[i])
+    return boundaries
+
+
+def _split_concatenated_cells(cells):
+    """拆分文字数字粘连及数字间粘连。"""
+    result = []
+    for cell in cells:
+        text = str(cell or "")
+        # 尝试拆分 CJK文字+数字：開發與授權105.59.2%185.9 → 開發與授權, 105.5, 9.2%, 185.9
+        m = re.match(r'^([一-鿿][一-鿿\s\-–—]+?)([\d,.\-\(\)%\s]+)$', text)
+        if m:
+            result.append(m.group(1).strip())
+            nums = m.group(2).strip()
+            result.extend(_split_number_sequence(nums))
+        else:
+            # 纯数字+百分比粘连：105.59.2% → 105.5, 9.2%
+            expanded = _split_number_sequence(text)
+            result.extend(expanded if len(expanded) > 1 else [text])
+    return result
+
+
+def _split_number_sequence(text):
+    """拆分数字序列：105.5 9.2% 185.9 20.4% → [105.5, 9.2%, 185.9, 20.4%]"""
+    text = str(text or "").strip()
+    if not text:
+        return [text]
+    # 先按空白分
+    parts = re.split(r'\s+', text)
+    result = []
+    for p in parts:
+        # 尝试拆百分比粘连：105.59.2% → 105.5, 9.2%
+        # 匹配模式：数字(可含小数点)后紧跟百分比或另一个数字
+        sub = re.findall(r'\(?-?[\d,]+(?:\.\d+)?[%％]?\)?', p)
+        if len(sub) > 1:
+            result.extend(s for s in sub if s)
+        else:
+            result.append(p)
+    return result
 
 
 def _cluster_x1(values):

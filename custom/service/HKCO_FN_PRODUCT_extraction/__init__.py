@@ -82,7 +82,15 @@ def _merge_facts(base, extra):
 
 
 def extract_main_table(main_inner_lines, context):
-    measurement = " ".join(line.get("text", "") for line in main_inner_lines or ())
+    chapter_text = " ".join(line.get("text", "") for line in main_inner_lines or ())
+    related_text = context.get("related_text", "")
+    # 年份检测兜底：从 info_code 推断年份
+    info_code = context.get("info_code", "")
+    year_hint = ""
+    if info_code and info_code.startswith("AN"):
+        code_year = int(info_code[2:6])
+        year_hint = f"截至{code_year}年12月31日止年度 截至{code_year-1}年12月31日止年度"
+    measurement = f"{chapter_text} {related_text} {year_hint}"
     facts = []
     for inner_lines in main_inner_lines or ():
         if not inner_lines.get("is_table") or not inner_lines.get("table"):

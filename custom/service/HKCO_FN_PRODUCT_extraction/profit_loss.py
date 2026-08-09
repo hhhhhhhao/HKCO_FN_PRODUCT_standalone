@@ -82,6 +82,16 @@ def extract(table: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, An
                 revenue_index = index
                 break
     if revenue_index is None:
+        # 回退：找含产品关键词或"-"前缀的行作为数据行
+        for index, row in enumerate(rows):
+            label = _row_label(row)
+            if not label:
+                continue
+            if label.startswith("-") or _name_overlap(label, prior_names):
+                if any(_number(cell) is not None for cell in row[1:]):
+                    revenue_index = index
+                    break
+    if revenue_index is None:
         return []
 
     product_indexes = []
@@ -110,6 +120,19 @@ def extract(table: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, An
             if any(_number(cell) is not None for cell in rows[index]):
                 product_indexes.append(index)
 
+    if not product_indexes:
+        # 回退：产品名和数值分两行的格式（"-銷售金屬"行+下一行数值）
+        for index in range(revenue_index + 1, min(len(rows), revenue_index + 30)):
+            label = _row_label(rows[index])
+            if label and label.startswith("-") and not any(_number(cell) is not None for cell in rows[index]):
+                next_idx = index + 1
+                if next_idx < len(rows) and any(_number(cell) is not None for cell in rows[next_idx]):
+                    product_indexes.append(next_idx)
+                    rows[next_idx] = list(rows[next_idx])
+                    if len(rows[next_idx]) > 0:
+                        rows[next_idx][0] = _clean_name(label)
+            elif label and _label_kind(label) in ("subtotal", "final"):
+                break
     if not product_indexes:
         # 纯损益表无产品分项：直接用收入行作为"合计"
         facts = []
