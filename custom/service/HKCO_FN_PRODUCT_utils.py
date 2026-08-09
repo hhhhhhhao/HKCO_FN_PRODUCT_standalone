@@ -81,6 +81,31 @@ def fullwidth_to_halfwidth(s):
         for char in s
     )
 
+def format_prior_names(prior_names):
+    """格式化上期产品名：去重 → 过滤合计/公司项 → 全角转半角 → 拆分复合名称。
+
+    对含 ╱ 或 / 的复合名称（如"證券╱期貨經紀服務"），取第一部分。
+    拆分后会再次去重，避免产生重复项。
+    """
+    # 去重保留顺序
+    prior_names = list(dict.fromkeys(prior_names))
+    # 合计/公司等项不参与历史产品命中，同时做全角转半角
+    aggregate_keywords = ['合計', '合计', '總計', '总计', '總額', '总额', 'total', '公司']
+    prior_names = [
+        fullwidth_to_halfwidth(name)
+        for name in prior_names
+        if not any(kw in name for kw in aggregate_keywords)
+    ]
+    # 拆分 ╱ 或 / 分隔的复合名称，取第一部分
+    prior_names = [
+        re.split(r'[╱/]', name)[0].strip() if '╱' in name or '/' in name else name
+        for name in prior_names
+    ]
+    # 拆分后再次去重
+    prior_names = list(dict.fromkeys(prior_names))
+    return prior_names
+
+
 def flatten_arr(lst, depth=-1):
     """
     打平多维数组到指定的深度。
@@ -145,6 +170,8 @@ def historical_product_last_name_matches(prior_names, inner_words_flatten):
             left_key = left_key.split('-')[-1]
         if ':' in left_key:
             left_key = left_key.split(':')[0]
+        if '/' in left_key or '╱' in left_key :
+            left_key = re.split(r'[╱/]', left_key)[0]
         if not left_key or not table_text:
             continue
         if left_key in inner_words_text:

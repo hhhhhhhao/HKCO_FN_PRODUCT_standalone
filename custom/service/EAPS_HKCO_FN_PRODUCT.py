@@ -210,6 +210,9 @@ def format_lines(page_lines, page_number):
         if line['bottom'] > 750 and re.search(r'^\d',line['text']) and ('上述' in line['text'] ):
             line["text"]  = 'delete'
 
+        if line['top'] < 70 and '附註' in line['text']:
+            line["text"]  = 'delete'
+
     page_lines = [page_line for page_line in page_lines if not page_line['text'] == 'delete']
 
     if page_lines and page_lines[-1]['bottom'] > 750 and re.search(r'^\d+$',page_lines[-1]['text']):
@@ -217,6 +220,7 @@ def format_lines(page_lines, page_number):
     
     if page_lines and page_lines[0]['top'] < 50 and '募集说明书' in page_lines[0]['text']:
         page_lines  = page_lines[1:]
+
 
     if page_number == 45:
         print
@@ -877,7 +881,7 @@ def process_pdf_file_batch(pdfs):
 
 if __name__ == "__main__":
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    code = "AN202506251697479727"
+    code = "AN202603121820526849"
     pdf_path = os.path.join(root, "pdf_json", f"{code}.pdf")
     result = process_pdf_file(pdf_path, code, "debug", None, None, {
         "mineru_json_base_dir": os.path.join(root, "pdf_json"),

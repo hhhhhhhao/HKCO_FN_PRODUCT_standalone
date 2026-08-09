@@ -15,7 +15,7 @@ from custom.service.HKCO_FN_PRODUCT_document import match_patterns
 from custom.service.HKCO_FN_PRODUCT_utils import (
     contains_chinese,
     flatten_arr,
-    fullwidth_to_halfwidth,
+    format_prior_names,
     historical_product_last_name_matches,
     is_number,
 )
@@ -27,7 +27,7 @@ from collections import defaultdict
 
 NUMBER = re.compile(r"^\s*\(?-?\d[\d,]*(?:\.\d+)?\)?\s*$")
 REVENUE_KEYWORDS = ["收入", "收益", "營業額", "营业额", "銷售額", "销售额", "revenue", "turnover", "sales"]
-PROFIT_LOSS_KEYWORDS = ["損益表", "损益表", "虧損表", "亏损表", "全面虧損表", "全面亏损表", "利潤表", "利润表", "全面收益表", "全面損益表", "全面损益表", "income statement", "statement of profit", "profit or loss", "profit and loss"]
+PROFIT_LOSS_KEYWORDS = ["損益", "损益", "虧損", "亏损", "全面虧損表", "全面亏损表", "全面損益表", "全面损益表",  "profit or loss", "profit and loss"]
 COST_KEYWORDS = ["銷售成本", "销售成本", "營業成本", "营业成本", "收入成本", "服務成本", "服务成本", "cost of sales", "cost of revenue", "cost of services"]
 GROSS_PROFIT_KEYWORDS = ["毛利", "毛利潤", "毛利润", "gross profit", "gross loss", "gross margin"]
 
@@ -43,23 +43,24 @@ _REGION_SPLIT_PATTERNS = [
 
 # 每一行是一个正则优先级（(pattern, group) 元组），从上到下依次匹配章节标题。
 _TABLE_CLASS_PATTERNS = [
-    [(r"分部收入及業績|收益及業績|業務分部|分拆.*(收入|收益)|收入明細|收益明細|收入分類|收益分類|收入構成|收益構成|分部業績|財務回顧|可呈報及經營分部.*業績|reportableandoperatingsegment|客户合約收益之細分|客戶合約收益之細分", 0)],
+    [(r"分部.*業績|收益及業績|業務分部|分拆.*(收入|收益)|收入明細|收益明細|收入分類|收益分類|收入構成|收益構成|分部業績|財務回顧|分部.*經營|reportableandoperatingsegment|客户合約收益|客戶合約收益|客户合約收入", 0)],
     [(r"經營分部|经营分部|收入及分部|分部資料|分部報告|分部信息|分部报告|收益及業績|分部收入|營業額及業績|分部資料|分部資料|分拆收入|分類.*資料|業務單位|业务单位|分部.*如下|分部收入", 0)],
     [(r"外部客戶收入|外部客户收入|收入、其他收益", 0)],
     [
         (r"按.*收入.*業績", 0),
         (r"按服務|按服务|按類別|按类别", 0),
         (r"產品收入|产品收入|服務收入|服务收入|收益、其他收入及收益|收入資料|收益資料|收益明細", 0),
-        (r"收入構成|收入构成|收入分拆|收入明細|收入明细|收益及分部|類別分析|类别分析|收益分類|收入分類|收益分类|收入分类|銷售貨品|销售货品|按產品|按产品|按主要產品|按主要产品|按.*劃分|按.*划分|收入、其他收入", 0),
+        (r"收入構成|收入构成|收入分拆|收入明細|收入明细|收益及分部|類別分析|类别分析|收益分類|收入分類|收益分类|收益及|收入分类|銷售貨品|销售货品|按產品|按产品|按主要產品|按主要产品|按.*劃分|按.*划分|收入、其他收入", 0),
         (r"收益分析|收入分析", 0),
         (r"^\d+\.收入$", 0),
         (r"^[\(|\（]*[、|\)|）|.|．|。|\)]*[一二三四五六七八九十0123456789①②③④⑤⑥⑦⑧⑨A-Da-d]+[、|\)|）|.||．|。|\)]*(收益|收入)$", 0),
     ],
     # [(r"收入|收益", 0)],
-    [(r"收入、資本支出及實現價格", 0)],
-    [(r"損益表|损益表|虧損表|亏损表|損益賬", 0)],
-    [(r"附註|附注", 0)],
     [(r"收益淨額", 0)],
+    [(r"收入、資本支出及實現價格", 0)],
+    [(r"按業務類型分類", 0)],
+    [(r"損益表|损益表|虧損表|亏损表|損益賬|損益.*表", 0)],
+    [(r"附註|附注", 0)],
 ]
 
 
@@ -225,10 +226,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
     返回 (selected_inner_lines, related_inner_lines, from_full_history)
     - from_full_history: 选表来自 full_history（全部上期产品名命中），选表高度可信。
     """
-    # 上期产品名直接去重。
-    prior_names = list(dict.fromkeys(prior_names))
-    # 合计项不参与历史产品命中。
-    prior_names = [fullwidth_to_halfwidth(name) for name in prior_names if not any(keyword in name for keyword in ['合計', '合计', '總計', '总计', '總額', '总额', 'total','公司'])]
+    prior_names = format_prior_names(prior_names)
 
     # 下标就是命中的上期产品数量。
     history_groups = [[] for _ in range(len(prior_names) + 1)]
@@ -257,7 +255,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
             first_line = inner_lines[0]["text"]
             inner_lines_text = "/".join(line["text"] for line in inner_lines)
 
-            if '(a)分部業績、資產及負債' == first_line:
+            if '本集團就某時間段及某一時間點的貨品及服務轉移獲取的客户合約收入如下:' == first_line:
                 print
 
             # 严格标题排除只检查章节第一行
@@ -269,6 +267,7 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 '季度比較', # AN202502271643556315 40
                 '股本', # AN202602271820108796
                 '註釋', '壞賬', # AN202504031650851715
+                '業務回顧', # AN202603121820526849
             )
             if any(keyword in first_line for keyword in exlcude_words):
                 continue
@@ -392,6 +391,13 @@ def select_main_table(pdf_path, lines_grouped, prior_names=()):
                 and any(keyword in inner_lines_text for keyword in GROSS_PROFIT_KEYWORDS)
             ):
                 return inner_lines, related_inner_lines, True
+
+    # prior_names 只有一个时，优先选首行含「损益」的章节（损益表 > 附注等其他章节）。
+    if len(prior_names) == 1 and len(candidate_tables) > 1:
+        for inner_lines in related_inner_lines:
+            first_line = inner_lines[0]["text"]
+            if any(keyword in first_line for keyword in PROFIT_LOSS_KEYWORDS):
+                return inner_lines, related_inner_lines, _in_full_history(inner_lines)
 
     # 仍然并列时，按正则优先级循环，找到第一个命中章节直接返回。
     if len(candidate_tables) > 1:
